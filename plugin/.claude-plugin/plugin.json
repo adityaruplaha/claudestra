@@ -1,0 +1,16 @@
+{
+  "name": "claudestra",
+  "version": "0.1.0",
+  "description": "Run long-lived Claude Code sessions as a staff: installs the claudestra CLI and keeps its guard in place.",
+  "author": {
+    "name": "Adityarup Laha"
+  },
+  "userConfig": {
+    "source": {
+      "type": "string",
+      "title": "Install source",
+      "description": "Where uv installs claudestra from; empty for this plugin's own release on GitHub. A local checkout's path is for developing claudestra.",
+      "default": ""
+    }
+  }
+}
