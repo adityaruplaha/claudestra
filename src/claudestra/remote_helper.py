@@ -34,8 +34,11 @@ def safe(rel: str, reading: bool = False) -> Path:
     """A path inside ~/.claude, never following a symlink at its end; outside any memory folder unless it is
     only read (`--copy-memory` reads and checksums memory, and nothing here ever trashes it)."""
     p = ROOT / rel
-    if not (p.parent.resolve() / p.name).is_relative_to(ROOT.resolve()) or (
-        not reading and "memory" in Path(rel).parts
+    # A last part of `..` is not resolved below, so a path holding one is refused outright.
+    if (
+        ".." in Path(rel).parts
+        or not (p.parent.resolve() / p.name).is_relative_to(ROOT.resolve())
+        or (not reading and "memory" in Path(rel).parts)
     ):
         raise SystemExit(json.dumps({"error": f"refusing {rel}"}))
     return p

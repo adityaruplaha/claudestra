@@ -58,7 +58,7 @@ def guard(fs: ClaudeFS, p: Path) -> None:
     """A path claudestra may move: inside ~/.claude, and never a project's auto-memory."""
     root = fs.root.resolve()
     rp = p.parent.resolve() / p.name  # the entry itself, not what a symlink there points to
-    if not rp.is_relative_to(root) or "memory" in rp.relative_to(root).parts:
+    if p.name == ".." or not rp.is_relative_to(root) or "memory" in rp.relative_to(root).parts:
         raise Refused(f"refusing {rp}: outside ~/.claude, or inside a memory folder")
 
 
