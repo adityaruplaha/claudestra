@@ -1,4 +1,4 @@
-"""`claudestra install-systemd-user-unit`: the login unit that starts this machine's autostart staffers. The user's alone."""
+"""`claudestra install login-unit`: the login unit that starts this machine's autostart staffers. The user's alone."""
 
 from __future__ import annotations
 

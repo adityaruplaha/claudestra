@@ -1,4 +1,4 @@
-"""`claudestra trash`, `restore`, `purge`: remove sessions to a trash and back.
+"""`claudestra trash add`, `restore`, `purge`: remove sessions to a trash and back.
 
 Who may run each is DESIGN.md §6.1; why a trash refuses what it refuses is DESIGN.md §9. The trash's
 layout is portable.py's (TRASH, MANIFEST, trash_into), shared with the other machine. Nothing is deleted

@@ -1,4 +1,4 @@
-"""`claudestra fetch`: move a stopped session from another machine to this one (ops/transfer.py). The user's alone."""
+"""`claudestra machine fetch`: move a stopped session from another machine to this one (ops/transfer.py). The user's alone."""
 
 from __future__ import annotations
 
@@ -14,9 +14,11 @@ class Fetch(Action):
     verb = "fetch"
     who = Kinds(frozenset({"human"}))
 
-    def __init__(self, session_id: str, host: str, src: str | None = None, dest: Path | None = None):
+    def __init__(
+        self, session_id: str, host: str, src: str | None = None, dest: Path | None = None, copy_memory: bool = False
+    ):
         super().__init__(session_id)
-        self.host, self.src, self.dest = host, src, dest
+        self.host, self.src, self.dest, self.copy_memory = host, src, dest, copy_memory
         self.plan: transfer.TransferPlan | None = None
 
     def _fetch(self, dry: bool):
@@ -37,6 +39,7 @@ class Fetch(Action):
             self.dest,
             sf.folders if sf else {},
             dry,
+            self.copy_memory,
         )
 
     def check(self) -> None:

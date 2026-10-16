@@ -283,7 +283,7 @@ def check_login_unit(fs: ClaudeFS, deep: bool, trust: Trust, machine: Machine) -
         return Result(
             "login-unit",
             FAIL,
-            f"{path.name} is not installed; propose `claudestra install-systemd-user-unit` to the user",
+            f"{path.name} is not installed; propose `claudestra install login-unit` to the user",
         )
     try:
         want = unit.expected()
@@ -293,7 +293,7 @@ def check_login_unit(fs: ClaudeFS, deep: bool, trust: Trust, machine: Machine) -
         return Result(
             "login-unit",
             FAIL,
-            f"{path} differs from what claudestra would write (claudestra or claude has moved?); propose reinstalling it",
+            f"{path} differs from what claudestra would write (claudestra has changed it, or claudestra or claude has moved); propose `claudestra install login-unit` to the user",
         )
     return Result("login-unit", PASS, f"{path.name} is installed and current")
 
@@ -301,7 +301,7 @@ def check_login_unit(fs: ClaudeFS, deep: bool, trust: Trust, machine: Machine) -
 def check_guard(fs: ClaudeFS, deep: bool, trust: Trust, machine: Machine) -> Result:
     """Claude Code's settings keep sessions out of claudestra's config: the deny rules and the hook (DESIGN.md §6.5)."""
     if missing := guard.missing(fs, trust.config):
-        return Result("guard", FAIL, f"missing: {'; '.join(missing)}; run `claudestra install-guard`")
+        return Result("guard", FAIL, f"missing: {'; '.join(missing)}; run `claudestra install guard`")
     return Result("guard", PASS, "sessions are kept out of the config folder")
 
 
@@ -311,7 +311,7 @@ def check_remote_control(fs: ClaudeFS, deep: bool, trust: Trust, machine: Machin
     folders = [sf.folder for sf in trust.staff if sf.folder is not None]
     if why := remote_control.problems(fs, folders):
         fix = (
-            "; propose `claudestra enable-remote-control` to the user"
+            "; propose `claudestra install remote-control` to the user"
             if remote_control.effective(fs)[0] is not True
             else ""
         )

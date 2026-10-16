@@ -19,7 +19,7 @@ from claudestra.claude_fs import ClaudeFS
 from claudestra.cli import ui
 from claudestra.context import Context
 from claudestra.model import Machine, Model, build
-from claudestra.ops import common, transfer
+from claudestra.ops import common, transfer, updates
 from claudestra.portable import slug
 from claudestra.trust import MachineConf, Trust, load
 
@@ -183,3 +183,11 @@ def as_him(home: Home, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(context_mod, "identify", lambda *a, **k: Caller("human"))
     # The tests may themselves run under Claude; the user at a terminal has no Claude in the chain.
     monkeypatch.setattr(context_mod, "claude_chain", lambda *a, **k: [])
+
+
+@pytest.fixture(autouse=True)
+def no_update_checks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """No test asks a real repository for its tags, and none reads the user's cache."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setattr(updates, "latest", lambda timeout=5: None)
+    monkeypatch.setattr(updates, "refresh_later", lambda home: None)

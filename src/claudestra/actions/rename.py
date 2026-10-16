@@ -1,4 +1,4 @@
-"""`claudestra rename`: rename a session as /rename does inside one.
+"""`claudestra session rename`: rename a session as /rename does inside one.
 
 A stopped session's files are written as /rename writes them (ops/rename.py). A running Claude Code
 re-appends its own title records, and the last one wins, so a running staffer in claudestra's tmux has

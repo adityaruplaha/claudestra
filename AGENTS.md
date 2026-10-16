@@ -21,7 +21,7 @@ claudestra runs long-lived Claude Code sessions as a machine's staff, on one or 
 - `actions/`: one file per action. `base.py` holds `Action` (whose `perform` method fixes the order every action is checked, authorized, confirmed and run in), `SessionAction`, `ReadOnlyAction`, `Transaction` and `Workflow`. Every action declares who may take it as its `who`, one rule from `permissions.py` (`Relations`, `ToFolder`, `Kinds` or `Anyone`), which also works out the relations and refuses with the reason; `claudestra permissions` prints every changing action's rule. An action varies `perform` through its `changes` and `locks` flags, never by overriding it.
 - `audit_errors.py`: what `claudestra audit` finds, one class per kind of problem; one that claudestra can fix safely returns the fixing action from `fix()`, which `audit --fix` takes.
 - `ops/` and `runners/`: the work on files and on tmux, with no permission checks of their own.
-- `cli/`: parses arguments, finds the object, calls a factory, and performs the action or prints what a reading action returns.
+- `cli/`: parses arguments, finds the object, calls a factory, and performs the action or prints what a reading action returns. Every argument naming a session, staffer, trash entry, machine, folder or choice is taken through `cli/select.py`, which uses it as given, picks it at a terminal from a list the command narrows, or refuses off one; no command builds a picker of its own.
 
 ## Rules the design depends on
 

@@ -1,4 +1,4 @@
-"""`claudestra describe`: change what a staffer's staff file says it works on. Whoever may hire the staffer
+"""`claudestra staff describe`: change what a staffer's staff file says it works on. Whoever may hire the staffer
 may describe it, since stating a specialist's work is part of supervising it, and so may the staffer
 itself; only the description line changes, and claudestra writes it, since staff.d/ is claudestra's to
 write (DESIGN.md §6.2)."""

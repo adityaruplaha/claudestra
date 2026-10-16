@@ -44,37 +44,37 @@ def test_install_adds_the_guard_and_keeps_the_rest(home: Home, as_him):
         json.dumps({"model": "opus", "permissions": {"deny": ["Bash(rm *)"]}, "hooks": {"PreToolUse": [theirs]}})
     )
     before = settings(home).read_text()
-    r = run(app, [*home.cli_args(), "install-guard", "--dry-run"])
+    r = run(app, [*home.cli_args(), "install", "guard", "--dry-run"])
     assert r.exit_code == 0 and "would add to" in r.output and settings(home).read_text() == before
     assert not (home.config / "guard.py").exists()
-    assert "install-guard" in run(app, [*home.cli_args(), "doctor", "guard"]).output
-    assert run(app, [*home.cli_args(), "install-guard", "-y"]).exit_code == 0
+    assert "install guard" in run(app, [*home.cli_args(), "doctor", "guard"]).output
+    assert run(app, [*home.cli_args(), "install", "guard", "-y"]).exit_code == 0
     data = json.loads(settings(home).read_text())
     assert data["model"] == "opus" and data["permissions"]["deny"] == ["Bash(rm *)", *guard.rules(home.config)]
     assert data["hooks"]["PreToolUse"] == [theirs, guard.hook_entry(home.config)]
     assert "sandbox" not in data  # the sandbox is the user's to turn on
     assert (home.config / "guard.py").is_file()
-    assert "in place" in run(app, [*home.cli_args(), "install-guard", "-y"]).output
+    assert "in place" in run(app, [*home.cli_args(), "install", "guard", "-y"]).output
     assert "kept out of the config" in run(app, [*home.cli_args(), "doctor", "guard"]).output
 
 
 def test_a_changed_guard_is_written_again(home: Home, as_him):
-    run(app, [*home.cli_args(), "install-guard", "-y"])
+    run(app, [*home.cli_args(), "install", "guard", "-y"])
     (home.config / "guard.py").write_text("# gutted\n")
     assert "guard.py as claudestra writes it" in run(app, [*home.cli_args(), "doctor", "guard"]).output
-    r = run(app, [*home.cli_args(), "install-guard", "-y"])
+    r = run(app, [*home.cli_args(), "install", "guard", "-y"])
     assert r.exit_code == 0 and (home.config / "guard.py").read_text() == guard.GUARD_SOURCE
 
 
 def test_a_session_may_install_it(home: Home, as_him, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(context_mod, "identify", lambda *a, **k: Caller("unscoped", B, "x", 1))
-    r = run(app, [*home.cli_args(), "install-guard", "-y"])
+    r = run(app, [*home.cli_args(), "install", "guard", "-y"])
     assert r.exit_code == 0 and json.loads(settings(home).read_text())["permissions"]["deny"]
 
 
 def test_a_sandbox_already_on_hides_the_folder_but_not_from_claudestra(home: Home, as_him):
     settings(home).write_text(json.dumps({"sandbox": {"enabled": True}}))
-    assert run(app, [*home.cli_args(), "install-guard", "-y"]).exit_code == 0
+    assert run(app, [*home.cli_args(), "install", "guard", "-y"]).exit_code == 0
     sandbox = json.loads(settings(home).read_text())["sandbox"]
     assert sandbox["filesystem"] == {"denyRead": [str(home.config)], "denyWrite": [str(home.config)]}
     assert sandbox["excludedCommands"] == ["claudestra *", "clost *"]
@@ -82,13 +82,13 @@ def test_a_sandbox_already_on_hides_the_folder_but_not_from_claudestra(home: Hom
 
 def test_a_settings_file_it_cannot_read_is_left_alone(home: Home, as_him):
     settings(home).write_text("{ not json")
-    r = run(app, [*home.cli_args(), "install-guard", "-y"])
+    r = run(app, [*home.cli_args(), "install", "guard", "-y"])
     assert r.exit_code == 1 and "cannot read" in r.output and settings(home).read_text() == "{ not json"
 
 
 def test_managed_prints_a_drop_in_and_doctor_counts_it(home: Home, as_him, tmp_path: Path):
     before = settings(home).read_text()
-    r = run(app, [*home.cli_args(), "install-guard", "--managed"])
+    r = run(app, [*home.cli_args(), "install", "guard", "--managed"])
     assert r.exit_code == 0 and "sudo install" in r.output and settings(home).read_text() == before
     fs = home.setup()[0]
     (home.config / "guard.py").write_text(guard.GUARD_SOURCE)
@@ -157,3 +157,23 @@ def test_the_hook_refuses_an_edit_that_removes_it_from_the_settings(home: Home, 
 
 def test_the_hook_fails_open_on_input_it_cannot_read(hook):
     assert hook(None, raw="not json") == 0
+
+
+def test_uninstall_takes_out_what_claudestra_added_and_keeps_the_rest(home: Home, as_him, monkeypatch):
+    monkeypatch.setenv("SHELL", "/bin/zsh")
+    monkeypatch.delenv("ZDOTDIR", raising=False)
+    monkeypatch.setenv("XDG_DATA_HOME", str(home.home / ".local" / "share"))
+    rc = home.home / ".zshrc"
+    rc.write_text("export A=1\n")
+    settings(home).write_text(
+        json.dumps({"model": "opus", "permissions": {"deny": ["Bash(rm *)"]}, "remoteControlAtStartup": True})
+    )
+    assert run(app, [*home.cli_args(), "install", "guard", "-y"]).exit_code == 0
+    assert run(app, [*home.cli_args(), "install", "completion", "zsh", "-y"]).exit_code == 0
+    assert "claudestra" in rc.read_text()
+    r = run(app, [*home.cli_args(), "uninstall", "-y"])
+    assert r.exit_code == 0, r.output
+    data = json.loads(settings(home).read_text())
+    assert data["model"] == "opus" and data["permissions"]["deny"] == ["Bash(rm *)"]
+    assert data["hooks"]["PreToolUse"] == [] and data["remoteControlAtStartup"] is True
+    assert not (home.config / "guard.py").exists() and rc.read_text() == "export A=1\n"

@@ -160,20 +160,20 @@ class Session:
 
         return Stop(self, force, socket)
 
-    def move(self, dest: Path, src: Path | None = None, exact: bool = False):
+    def move(self, dest: Path, src: Path | None = None, exact: bool = False, copy_memory: bool = False):
         from .actions.move import Move
 
-        return Move(self, dest, src, exact)
+        return Move(self, dest, src, exact, copy_memory)
 
     def trash(self, recent_minutes: float = 10.0):
         from .actions.trash import Trash
 
         return Trash(self, recent_minutes)
 
-    def send(self, host: str, dest: str | None = None, src: Path | None = None):
+    def send(self, host: str, dest: str | None = None, src: Path | None = None, copy_memory: bool = False):
         from .actions.send import Send
 
-        return Send(self, host, dest, src)
+        return Send(self, host, dest, src, copy_memory)
 
     def compact(self, claude: str, instructions: str = "", timeout: float = 600.0, socket: str | None = None):
         from .actions.compact import Compact

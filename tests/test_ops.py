@@ -255,6 +255,30 @@ def test_send_then_fetch_round_trip(home: Home, tmp_path: Path):
     assert json.loads(tr.read_text())["cwd"] == str(home.home / "work") and not landed.exists()
 
 
+def test_send_and_fetch_copy_memory_only_when_asked_adding_what_is_missing(home: Home, tmp_path: Path):
+    lt, machines, far_home = far_side(tmp_path)
+    (far_home / "dest").mkdir()
+    work = home.folder("work")
+    aged(home.transcript(A, work, [{"type": "user", "uuid": "u", "sessionId": A, "cwd": str(work)}]))
+    home.staff_file(A, "a", {HOST: "~/work", lt.hostname: "~/dest"})
+    here_mem = home.projects / slug(work) / "memory"
+    here_mem.mkdir(parents=True)
+    (here_mem / "MEMORY.md").write_text("index\n")
+    there_mem = far_home / ".claude" / "projects" / slug(far_home / "dest") / "memory"
+    there_mem.mkdir(parents=True)
+    (there_mem / "MEMORY.md").write_text("theirs\n")
+    fs, t, m = home.setup()
+    with pytest.raises(Refused, match="differs at the destination"):
+        transfer.send(fs, HOST, machines, t, HUMAN, m.sessions[A], lt, None, None, False, lambda sid: True, True)
+    (there_mem / "MEMORY.md").unlink()
+    plan = transfer.send(fs, HOST, machines, t, HUMAN, m.sessions[A], lt, None, None, False, lambda sid: True, True)
+    assert plan.memory and (there_mem / "MEMORY.md").read_text() == "index\n" and (here_mem / "MEMORY.md").exists()
+    (there_mem / "notes.md").write_text("from there\n")
+    fs, t, _ = home.setup()
+    transfer.fetch(fs, HOST, machines, t, HUMAN, A, lt, None, work, t.staff[0].folders, False, True)
+    assert (here_mem / "notes.md").read_text() == "from there\n"
+
+
 def test_send_failing_at_the_push_takes_back_what_arrived(home: Home, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     lt, machines, far_home = far_side(tmp_path)
     (far_home / "dest").mkdir()

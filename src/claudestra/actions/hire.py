@@ -1,4 +1,4 @@
-"""`claudestra hire`: put a session on the staff, by writing its staff file.
+"""`claudestra staff hire`: put a session on the staff, by writing its staff file.
 
 The staff file is claudestra's to write, so hiring is the only way onto the staff. A session that was
 dismissed is rehired from its old staff file, with whatever is given here written over it. Who may

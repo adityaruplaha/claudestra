@@ -39,7 +39,7 @@ def test_the_tables_match_what_each_action_declares():
     header, body = on_session[0][1:], on_session[2:]
     written = {}
     for row in body:
-        allowed = {COLUMNS[h] for h, cell in zip(header, row[1:], strict=True) if cell == "yes"}
+        allowed = {COLUMNS[h] for h, cell in zip(header, row[1:], strict=True) if cell in ("✅", "⚠️")}
         if row[0] in ("fix-name", "describe"):
             allowed.add(perm.SELF)  # "also allow the staffer itself"
         written[row[0]] = allowed

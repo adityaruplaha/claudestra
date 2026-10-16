@@ -62,15 +62,18 @@ def unhire(config: Path, sid: str, was_dismissed: str | None) -> None:
     staff_path(config, sid).unlink()
 
 
-def dismiss(config: Path, sid: str) -> None:
-    """Move the staff file to staff-dismissed.d/, exactly as it is."""
+def dismiss(config: Path, sid: str) -> str | None:
+    """Move the staff file to staff-dismissed.d/, exactly as it is, over any older dismissed copy, whose text
+    it returns for an undo. The staff file is the newer: hiring removes the dismissed copy it came from."""
     src, dst = staff_path(config, sid), dismissed_path(config, sid)
-    if dst.exists():
-        raise Refused(f"{dst} exists already; one of the two is stale, so settle it by hand")
+    older = dst.read_text() if dst.exists() else None
     dst.parent.mkdir(parents=True, exist_ok=True)
-    src.rename(dst)
+    src.replace(dst)
+    return older
 
 
-def undismiss(config: Path, sid: str) -> None:
-    """Undo a dismissal: move the file back, exactly as it was."""
+def undismiss(config: Path, sid: str, older: str | None = None) -> None:
+    """Undo a dismissal: move the file back, exactly as it was, and put back any older dismissed copy."""
     dismissed_path(config, sid).rename(staff_path(config, sid))
+    if older is not None:
+        atomic_write_text(dismissed_path(config, sid), older)

@@ -15,7 +15,7 @@ from claudestra.caller import Caller, Refused
 from claudestra.runners import tmux as runner
 from claudestra.session import Session, Staffer
 
-from conftest import HERE, HUMAN, A, B, C, D, Home
+from conftest import HERE, HUMAN, A, B, C, D, Home, aged
 
 R = {v: getattr(r, "allowed", None) or getattr(r, "kinds", frozenset()) for v, r in perm.matrix().items()}  # by verb
 
@@ -383,12 +383,12 @@ def test_the_login_unit_starts_only_this_machines_autostart_staffers(home: Home)
 def test_every_changing_action_declares_who_may_take_it():
     """Each action states its own rule; nothing changing is left without one."""
     assert set(R) == {
-        "attach", "compact", "describe", "dismiss", "fetch", "fix the audit", "guard", "hire", "install", "move", "purge", "rename",
-        "fix-name", "remote-control", "restore", "send", "start", "stop", "trash", "type",
+        "attach", "compact", "completion", "describe", "dismiss", "fetch", "fix the audit", "guard", "hire", "install", "move", "purge", "rename",
+        "fix-name", "preferences", "remote-control", "restore", "send", "spawn", "uninstall", "start", "stop", "trash", "type",
         "trust grant", "trust revoke", "trust autostart", "trust protect", "trust machine",
     }  # fmt: skip
-    # the audit's fixes are each authorized as their own verb; the guard only adds protection
-    assert all(R[v] for v in R if v not in ("fix the audit", "guard"))
+    # the audit's fixes are each authorized as their own verb; the guard and completion only add
+    assert all(R[v] for v in R if v not in ("fix the audit", "guard", "completion"))
     assert R["send"] == {perm.USER} and R["restore"] == {"human", "device"}
 
 
@@ -643,3 +643,22 @@ def test_move_requires_the_jobs_check_since_it_rewrites_job_state():
     from claudestra.actions.move import Move
 
     assert "jobs" in Move.needs and "transcript-ids" in Move.needs
+
+
+def test_move_copies_the_projects_memory_only_when_asked_and_never_overwrites(home: Home):
+    from claudestra.portable import slug as slug_of
+
+    w, x = home.folder("w"), home.folder("x")
+    aged(home.transcript(A, w))
+    mem_w, mem_x = home.projects / slug_of(w) / "memory", home.projects / slug_of(x) / "memory"
+    mem_w.mkdir(parents=True)
+    (mem_w / "MEMORY.md").write_text("index\n")
+    (mem_w / "a.md").write_text("a\n")
+    mem_x.mkdir(parents=True)
+    (mem_x / "MEMORY.md").write_text("other index\n")
+    home.acting(HUMAN)
+    with pytest.raises(Refused, match="differs at the destination in MEMORY.md"):
+        Session(A).move(x, copy_memory=True).perform()
+    (mem_x / "MEMORY.md").write_text("index\n")  # the same file there is no conflict
+    Session(A).move(x, copy_memory=True).perform()
+    assert (mem_x / "a.md").read_text() == "a\n" and (mem_w / "a.md").exists()  # copied, not moved

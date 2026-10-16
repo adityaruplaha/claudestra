@@ -15,17 +15,25 @@ from ..actions.trust_machine import TrustMachine
 from ..actions.trust_protect import TrustProtect
 from ..actions.trust_revoke import TrustRevoke
 from ..actions.trust_show import TrustShow
-from ..claude_fs import UUID
 from ..context import Context
+from ..trust import SCOPES
+from . import select
 from .base import app, refusing
 from .ui import Dry, Yes, go_ahead
 
 trust_app = typer.Typer(
-    help="trust.yaml: scopes, autostart, protected folders and machines (the user's alone to change)."
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help="trust.yaml: scopes, autostart, protected folders and machines (the user's alone to change).",
 )
 app.add_typer(trust_app, name="trust")
 
-Session = Annotated[str, typer.Argument(help="The session: a full ID, or a name or 8+ character prefix here.")]
+STAFFER = select.Staffers()
+SCOPED = select.Staffers(scoped=True, help="A staffer with a scope; picked at a terminal.")
+SCOPE = select.OneOf({s: "" for s in SCOPES}, "a scope", "Which scope?")
+CHANGE = select.OneOf({"add": "", "remove": ""}, "add or remove", "Add or remove?")
+PROTECT = select.Folder(help="The folder; on another machine, as a path there. Browsed to at a terminal.")
+Session = STAFFER.arg
 Machine = Annotated[
     str | None, typer.Option("--machine", help="The machine, as trust.yaml names it; default: this one.")
 ]
@@ -36,9 +44,12 @@ class Change(StrEnum):
     remove = "remove"
 
 
-def _sid(token: str) -> str:
-    """A full session ID as given, or the one session a token names here."""
-    return token if UUID.match(token) else refusing(lambda: Context.current().session(token)).id
+ChangeArg = Annotated[Change | None, typer.Argument(help="add or remove; picked at a terminal.", show_default=False)]
+
+
+def _change(change: Change | None) -> bool:
+    """Whether it adds: as given, or picked at a terminal."""
+    return CHANGE.get(change.value if change else None) == "add"
 
 
 def _do(action, yes: bool, dry: bool) -> None:
@@ -46,50 +57,70 @@ def _do(action, yes: bool, dry: bool) -> None:
 
 
 @trust_app.command("show")
-def show() -> None:
+def show(ctx: typer.Context) -> None:
     """trust.yaml as claudestra reads it, with each session's current name."""
     print(refusing(TrustShow().perform), end="")
 
 
 @trust_app.command("grant")
 def grant(
-    session: Session,
-    scope: Annotated[str, typer.Argument(help="device or folder.")],
+    session: Session = None,
+    scope: Annotated[
+        str | None, typer.Argument(help="device or folder; picked at a terminal.", show_default=False)
+    ] = None,
     dry: Dry = False,
     yes: Yes = False,
 ) -> None:
     """Give a session a scope."""
-    _do(TrustGrant(_sid(session), scope), yes, dry)
+    sid = STAFFER.get(session)
+    scope = SCOPE.get(scope)
+    _do(TrustGrant(sid, scope), yes, dry)
 
 
 @trust_app.command("revoke")
-def revoke(session: Session, dry: Dry = False, yes: Yes = False) -> None:
+def revoke(session: Session = None, dry: Dry = False, yes: Yes = False) -> None:
     """Take a session's scope away."""
-    _do(TrustRevoke(_sid(session)), yes, dry)
+    _do(TrustRevoke(SCOPED.get(session)), yes, dry)
 
 
 @trust_app.command("autostart")
-def autostart(change: Change, session: Session, machine: Machine = None, dry: Dry = False, yes: Yes = False) -> None:
+def autostart(
+    change: ChangeArg = None, session: Session = None, machine: Machine = None, dry: Dry = False, yes: Yes = False
+) -> None:
     """Add a staffer to a machine's login list, or remove it."""
-    _do(TrustAutostart(_sid(session), change is Change.add, machine), yes, dry)
+    add = _change(change)
+    _do(
+        TrustAutostart(STAFFER.where(on=machine or Context.current().machine.hostname).get(session), add, machine),
+        yes,
+        dry,
+    )
 
 
 @trust_app.command("protect")
 def protect(
-    change: Change,
-    folder: Annotated[Path, typer.Argument(help="The folder; on another machine, as a path there.")],
+    change: ChangeArg = None,
+    folder: Annotated[
+        Path | None,
+        typer.Argument(
+            help="The folder; on another machine, as a path there. Asked at a terminal.", show_default=False
+        ),
+    ] = None,
     machine: Machine = None,
     dry: Dry = False,
     yes: Yes = False,
 ) -> None:
     """Protect a folder on a machine, so its sessions may not leave it, or stop protecting it."""
-    path = folder.expanduser().absolute() if machine is None else folder
-    _do(TrustProtect(path, change is Change.add, machine), yes, dry)
+    add = _change(change)
+    if machine is None:
+        path = PROTECT.get(folder)
+    else:
+        path = folder or Path(select.Text(f"The folder on {machine}:", "the folder").get())
+    _do(TrustProtect(path, add, machine), yes, dry)
 
 
 @trust_app.command("machine")
 def machine(
-    change: Change,
+    change: ChangeArg = None,
     host: Annotated[str | None, typer.Argument(help="The machine's hostname; default: this one.")] = None,
     home: Annotated[Path | None, typer.Option("--home", help="Its home folder (another machine only).")] = None,
     machine_id: Annotated[
@@ -100,4 +131,4 @@ def machine(
     yes: Yes = False,
 ) -> None:
     """Describe a machine in trust.yaml, or remove it. This machine's home and ID are worked out here."""
-    _do(TrustMachine(change is Change.add, host, home, machine_id, ssh), yes, dry)
+    _do(TrustMachine(_change(change), host, home, machine_id, ssh), yes, dry)

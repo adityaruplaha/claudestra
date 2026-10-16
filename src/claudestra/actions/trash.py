@@ -1,4 +1,4 @@
-"""`claudestra trash`: move a stopped session to the trash, every store with it; `restore` puts it back."""
+"""`claudestra trash add`: move a stopped session to the trash, every store with it; `restore` puts it back."""
 
 from __future__ import annotations
 

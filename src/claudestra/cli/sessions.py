@@ -1,9 +1,10 @@
-"""The commands that change a session's files: move, rename, trash, restore, purge. Each performs an
+"""The commands that change a session's files: `session move` and `session rename`, and the `trash` group. Each performs an
 action (actions/), which plans, shows the plan, asks at a terminal, and then, inside claudestra's lock,
 plans again from a fresh read of the disk and refuses if anything changed while the user was deciding."""
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Annotated
 
@@ -11,37 +12,40 @@ import typer
 from rich.table import Table
 from rich.text import Text
 
+from ..actions.base import Transaction
 from ..ops import trash as trash_ops
-from . import ui
-from .base import FS_CHECKS, Ctx, app, refusing
+from . import select
+from .base import FS_CHECKS, Ctx, refusing, session_app, trash_app
 from .ui import (
+    AsJson,
+    CopyMemory,
     Dry,
-    SessionArg,
-    SessionsArg,
     Socket,
     Yes,
-    ask_folder,
-    ask_text,
-    complete_entry,
+    fail,
     go_ahead,
     lines,
     out,
-    pick,
-    session_choices,
 )
 
+STOPPED = select.Sessions(running=False, here=True)
+HERE = select.Sessions(here=True)
+TRASHABLE = select.Sessions(
+    staff=False, running=False, here=True, many=True, help="Sessions off the staff and stopped; picked at a terminal."
+)
+ENTRY = select.TrashEntries()
+MOVE_TO = select.Folder(
+    message="Move it to which folder?", help="The folder to refile it under; browsed to at a terminal."
+)
+NEW_NAME = select.Text("New name:", "the new name")
+AGE = select.Text("Delete entries older than how many days?", "--older-than DAYS", "30")
 
-def _stopped(c: Ctx, keep=lambda s: True) -> list[tuple[str, str]]:
-    return session_choices(list(c.model.sessions.values()), c.fs.home, lambda s: not s.runs and keep(s))
 
-
-@app.command()
+@session_app.command()
 def move(
     ctx: typer.Context,
-    session: SessionArg = None,
-    folder: Annotated[
-        Path | None, typer.Argument(file_okay=False, help="The folder to refile it under.", show_default=False)
-    ] = None,
+    session: STOPPED.arg = None,
+    folder: MOVE_TO.arg = None,
     src: Annotated[
         Path | None,
         typer.Option("--from", help="The folder the session is filed under, where its slug alone cannot tell."),
@@ -50,24 +54,25 @@ def move(
         bool,
         typer.Option("--exact", help="Rewrite only the launch folder's cwd, leaving work in its subfolders as it was."),
     ] = False,
+    copy_memory: CopyMemory = False,
     dry: Dry = False,
     yes: Yes = False,
 ) -> None:
     """Refile a stopped session under FOLDER on this machine, as if it had always run there."""
     c: Ctx = ctx.obj
     c.act(FS_CHECKS)
-    s = c.session(session or pick("Which session?", _stopped(c), "a session"))
-    dest = (folder or ask_folder("Move it to which folder?", c.fs.home)).expanduser().absolute()
+    s = STOPPED.get(session)
+    dest = MOVE_TO.get(folder)
     frm = src.expanduser().absolute() if src else None
-    refusing(lambda: s.move(dest, frm, exact).perform(go_ahead(yes, dry)))
+    refusing(lambda: s.move(dest, frm, exact, copy_memory).perform(go_ahead(yes, dry)))
     if not dry:
         out.print(Text("moved", style="green"))
 
 
-@app.command()
+@session_app.command()
 def rename(
     ctx: typer.Context,
-    session: SessionArg = None,
+    session: HERE.arg = None,
     name: Annotated[str | None, typer.Argument(help="The new name.", show_default=False)] = None,
     dry: Dry = False,
     yes: Yes = False,
@@ -76,78 +81,79 @@ def rename(
     """Rename a session as /rename does inside one; one running in claudestra's tmux has /rename typed into it. A staffer's staff file follows."""
     c: Ctx = ctx.obj
     c.act(FS_CHECKS)
-    here = session_choices(list(c.model.sessions.values()), c.fs.home, lambda s: bool(s.homes))
-    s = c.session(session or pick("Which session?", here, "a session"))
-    name = name or ask_text("New name:", "the new name", s.name or "")
+    s = HERE.get(session)
+    name = NEW_NAME.get(name, s.name or "")
 
     refusing(lambda: s.rename(name, socket).perform(go_ahead(yes, dry)))
     if not dry:
         out.print(Text("renamed", style="green"))
 
 
-@app.command()
+@trash_app.command("list")
+def trash_list(ctx: typer.Context, as_json: AsJson = False) -> None:
+    """The trash: each entry and the title of the session in it."""
+    c: Ctx = ctx.obj
+    if as_json:
+        print(json.dumps([{"entry": e.name, "manifest": mf} for e, mf in trash_ops.entries(c.fs)], indent=2))
+        return
+    t = Table(box=None, header_style="bold", pad_edge=False)
+    t.add_column("entry", style="cyan", no_wrap=True)
+    t.add_column("title")
+    for e, mf in trash_ops.entries(c.fs):
+        t.add_row(e.name, (mf.get("title") or "-") if mf else Text("(no manifest)", style="red"))
+    out.print(t)
+
+
+@trash_app.command("add")
 def trash(
     ctx: typer.Context,
-    sessions: SessionsArg = None,
+    sessions: TRASHABLE.arg = None,
     recent_minutes: Annotated[float, typer.Option(help="Refuse a session written this recently.")] = 10.0,
-    list_only: Annotated[bool, typer.Option("--list", "-l", help="List the trash.")] = False,
     dry: Dry = False,
     yes: Yes = False,
 ) -> None:
-    """Move sessions to the trash, every store with them; with --list, or no session off a terminal, show the trash."""
+    """Move sessions to the trash, every store with them."""
     c: Ctx = ctx.obj
-    if list_only or (not sessions and not ui.interactive()):
-        t = Table(box=None, header_style="bold", pad_edge=False)
-        t.add_column("entry", style="cyan", no_wrap=True)
-        t.add_column("title")
-        for e, mf in trash_ops.entries(c.fs):
-            t.add_row(e.name, (mf.get("title") or "-") if mf else Text("(no manifest)", style="red"))
-        out.print(t)
-        return
     c.act(FS_CHECKS)
-    picked = [
-        c.session(t) for t in sessions or [pick("Which session?", _stopped(c, lambda s: not s.staff_file), "a session")]
-    ]
-    for s in picked:
-        refusing(lambda s=s: s.trash(recent_minutes).perform(go_ahead(yes, dry)))
+    picked = TRASHABLE.get(sessions)
+    # All or nothing: one plan and one question, and a refusal for any of them trashes none.
+    steps = [s.trash(recent_minutes) for s in picked]
+    refusing(lambda: (Transaction(steps) if len(steps) > 1 else steps[0]).perform(go_ahead(yes, dry)))
     if not dry:
-        out.print(Text("trashed; `claudestra restore` puts them back", style="green"))
+        out.print(Text("trashed; `claudestra trash restore` puts them back", style="green"))
 
 
-@app.command()
+@trash_app.command()
 def restore(
     ctx: typer.Context,
-    entry: Annotated[
-        str | None,
-        typer.Argument(
-            help="A trash entry, or 8+ characters of its session ID.", autocompletion=complete_entry, show_default=False
-        ),
-    ] = None,
+    entry: ENTRY.arg = None,
     dry: Dry = False,
     yes: Yes = False,
 ) -> None:
     """Put a trashed session back where it came from."""
     c: Ctx = ctx.obj
-    entry = entry or pick(
-        "Which trash entry?",
-        [(e.name, f"{e.name}  {mf.get('title') or '-'}") for e, mf in trash_ops.entries(c.fs) if mf],
-        "a trash entry",
-    )
+    entry = ENTRY.get(entry)
     done = refusing(lambda: c.restore(entry).perform(go_ahead(yes, dry)))
     lines(done or [], "green")
 
 
-@app.command()
+@trash_app.command()
 def purge(
     ctx: typer.Context,
     older_than: Annotated[
-        float, typer.Option("--older-than", metavar="DAYS", help="Delete trash entries older than this.")
-    ],
+        float | None,
+        typer.Option("--older-than", metavar="DAYS", help="Delete trash entries older than this; asked at a terminal."),
+    ] = None,
     dry: Dry = False,
     yes: Yes = False,
 ) -> None:
     """Delete trash entries older than DAYS, permanently (the user only)."""
     c: Ctx = ctx.obj
+    if older_than is None:
+        try:
+            older_than = float(AGE.get())
+        except ValueError:
+            raise fail("refused: --older-than is a number of days") from None
     action = c.purge(older_than)
     done = refusing(
         lambda: action.perform(lambda plan: bool(plan) and go_ahead(yes, dry, prompt="Delete these for good?")(plan))

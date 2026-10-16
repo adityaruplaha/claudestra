@@ -1,4 +1,4 @@
-"""`claudestra send`: move a stopped session from this machine to another (ops/transfer.py). The user's alone,
+"""`claudestra machine send`: move a stopped session from this machine to another (ops/transfer.py). The user's alone,
 and the user confirms by typing the session's full ID, since what a transcript read is not visible from its
 folder (DESIGN.md §6.3)."""
 
@@ -16,9 +16,9 @@ class Send(SessionAction):
     verb = "send"
     who = Relations(frozenset({USER}))
 
-    def __init__(self, session, host: str, dest: str | None = None, src: Path | None = None):
+    def __init__(self, session, host: str, dest: str | None = None, src: Path | None = None, copy_memory: bool = False):
         super().__init__(session)
-        self.host, self.dest, self.src = host, dest, src
+        self.host, self.dest, self.src, self.copy_memory = host, dest, src, copy_memory
         self.plan: transfer.TransferPlan | None = None
 
     def transport(self) -> transfer.Transport:
@@ -43,6 +43,7 @@ class Send(SessionAction):
             self.src,
             dry,
             lambda _sid: True,
+            self.copy_memory,
         )
 
     def check(self) -> None:

@@ -1,4 +1,4 @@
-"""`claudestra install-guard`: what keeps sessions out of claudestra's config (DESIGN.md §6.5).
+"""`claudestra install guard`: what keeps sessions out of claudestra's config (DESIGN.md §6.5).
 
 Two layers, both in the user's own Claude Code settings. **Deny rules** for the Read and Edit tools and the
 shell's common file commands; a rule does not expand variables, so a config folder away from
@@ -37,7 +37,7 @@ DROP_IN = MANAGED / "managed-settings.d" / "claudestra.json"
 # finds the config folder from where it lies, and the home folder and Claude Code's settings as it runs.
 # A shell command is refused for a path-like word that resolves into the folder, not for any mention of
 # its name, so a command that only mentions it (grepping docs for it, say) runs.
-GUARD_SOURCE = r'''"""Written by `claudestra install-guard`, which rewrites it: a Claude Code PreToolUse hook that refuses a
+GUARD_SOURCE = r'''"""Written by `claudestra install guard`, which rewrites it: a Claude Code PreToolUse hook that refuses a
 session's tool call touching claudestra's config folder, the one this file lies in, or an edit of the
 settings that would remove this hook (claudestra's DESIGN.md §6.5). It fails open on input it cannot
 read, rather than block every call."""
@@ -210,7 +210,7 @@ def managed(config: Path) -> list[str]:
     """The drop-in for managed settings, and how the user installs it as root."""
     drop_in = {"permissions": {"deny": rules(config)}, "hooks": {"PreToolUse": [hook_entry(config)]}}
     return [
-        "managed settings cannot be changed by any session, but need root. Run `claudestra install-guard` first,",
+        "managed settings cannot be changed by any session, but need root. Run `claudestra install guard` first,",
         "which writes the hook this names, then install the drop-in:",
         f"  sudo install -D -m 644 /dev/stdin {DROP_IN} <<'EOF'",
         *json.dumps(drop_in, indent=2).splitlines(),
@@ -239,4 +239,40 @@ def missing(fs: ClaudeFS, config: Path) -> list[str]:
     guard = guard_path(config)
     if not guard.is_file() or guard.read_text() != GUARD_SOURCE:
         out.append(f"{guard} as claudestra writes it")
+    return out
+
+
+def uninstall(fs: ClaudeFS, config: Path, dry: bool) -> list[str]:
+    """Take the guard out of the user's settings (its deny rules, its hook, and what it added to the sandbox),
+    keeping everything else there, and remove `guard.py`. Managed settings are root's, and are only named."""
+    path = settings_path(fs)
+    settings = _read(path)
+    before = json.dumps(settings, sort_keys=True)
+    out: list[str] = []
+    perms = settings.get("permissions")
+    if isinstance(perms, dict) and isinstance(perms.get("deny"), list):
+        perms["deny"] = [r for r in perms["deny"] if r not in rules(config)]
+    hooks = settings.get("hooks")
+    if isinstance(hooks, dict) and isinstance(hooks.get("PreToolUse"), list):
+        g = str(guard_path(config))
+        hooks["PreToolUse"] = [e for e in hooks["PreToolUse"] if not (isinstance(e, dict) and g in json.dumps(e))]
+    sandbox = settings.get("sandbox")
+    if isinstance(sandbox, dict):
+        fs_ = sandbox.get("filesystem")
+        for key in ("denyRead", "denyWrite"):
+            if isinstance(fs_, dict) and isinstance(fs_.get(key), list):
+                fs_[key] = [p for p in fs_[key] if p != str(config.absolute())]
+        if isinstance(sandbox.get("excludedCommands"), list):
+            sandbox["excludedCommands"] = [x for x in sandbox["excludedCommands"] if x not in COMMANDS]
+    if json.dumps(settings, sort_keys=True) != before:
+        out.append(f"{'would take' if dry else 'take'} the guard's rules and hook out of {path}")
+        if not dry:
+            atomic_write_text(path, json.dumps(settings, indent=2) + "\n")
+    g = guard_path(config)
+    if g.exists():
+        out.append(f"{'would remove' if dry else 'remove'} {g}")
+        if not dry:
+            g.unlink()
+    if DROP_IN.exists():
+        out.append(f"{DROP_IN} is root's: remove it with `sudo rm {DROP_IN}`")
     return out

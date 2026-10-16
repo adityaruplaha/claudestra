@@ -20,39 +20,28 @@ from ..actions.ls import List
 from ..actions.permissions import Kinds, Relations, ToFolder
 from ..actions.permissions_view import Permissions
 from ..actions.whoami import Whoami
-from ..context import Context
 from ..ops import remote_control
 from ..ops.audit import REPORTS
 from ..proctree import describe as describe_chain
 from ..trust import tilde
+from . import select
 from .base import Ctx, app, refusing
 from .ui import (
     AsJson,
     Dry,
-    SessionArg,
-    SessionsArg,
     Yes,
     go_ahead,
     interactive,
     label,
     lines,
     out,
-    pick,
-    session_choices,
     state_text,
     when,
     where,
 )
 
-
-def _session(token: str | None):
-    """The session a token names, or one picked at a terminal."""
-    c = Context.current()
-    return refusing(
-        lambda: c.session(
-            token or pick("Which session?", session_choices(list(c.model.sessions.values()), c.fs.home), "a session")
-        )
-    )
+ANY = select.Sessions()
+ANY_MANY = select.Sessions(many=True, help="Sessions, as for one; picked at a terminal.")
 
 
 def _tags(c: Ctx, sid: str, s=None) -> Text:
@@ -99,6 +88,16 @@ def ls_cmd(
                         "last_active": when(s.mtime),
                     }
                     for s in rows
+                ]
+                + [  # running, with no transcript yet, as the table shows them
+                    {
+                        "session": r.session_id,
+                        "name": r.name,
+                        "folder": r.cwd,
+                        "state": f"{r.kind} {r.status or ''}".strip(),
+                        "transcript": False,
+                    }
+                    for r in listing.unwritten
                 ],
                 indent=2,
             )
@@ -130,13 +129,22 @@ def ls_cmd(
             "-",
             _tags(c, a.session),
         )
+    for r in listing.unwritten:  # counted as running, so shown: a session that has not written a transcript yet
+        t.add_row(
+            r.session_id[:8],
+            r.name or "-",
+            Text(f"{r.kind} {r.status or ''} (pid {r.pid}), no transcript yet".replace("  ", " "), style="yellow"),
+            tilde(r.cwd, home) if r.cwd else "-",
+            "-",
+            "",
+        )
     out.print(t)
 
 
 @app.command()
-def show(ctx: typer.Context, session: SessionArg = None, as_json: AsJson = False) -> None:
+def show(ctx: typer.Context, session: ANY.arg = None, as_json: AsJson = False) -> None:
     """One session in full."""
-    session = _session(session)
+    session = ANY.get(session)
     info = refusing(session.show().perform)
     s = session.record
     if as_json:
@@ -162,13 +170,31 @@ def show(ctx: typer.Context, session: SessionArg = None, as_json: AsJson = False
 @app.command()
 def summary(
     ctx: typer.Context,
-    sessions: SessionsArg = None,
+    sessions: ANY_MANY.arg = None,
     reply_chars: Annotated[int, typer.Option(help="How much of the last reply to show.")] = 1500,
+    as_json: AsJson = False,
 ) -> None:
     """Is a session finished? Its typed prompts, what was relayed, and its last reply."""
     c: Ctx = ctx.obj
-    for token in sessions or [None]:
-        session = _session(token)
+    picked = ANY_MANY.get(sessions)
+    if as_json:
+        rows = []
+        for session in picked:
+            sm = refusing(session.summary(reply_chars).perform)
+            s = session.record
+            rows.append(
+                {
+                    "session": s.session_id,
+                    "name": s.name,
+                    "state": s.state,
+                    "typed": sm.typed,
+                    "relayed": sm.relayed,
+                    "last_reply": sm.last_reply[:reply_chars],
+                }
+            )
+        print(json.dumps(rows, indent=2))
+        return
+    for session in picked:
         sm = refusing(session.summary(reply_chars).perform)
         s = session.record
         out.rule(
@@ -192,9 +218,31 @@ def whoami(
     chain: Annotated[
         bool, typer.Option("--chain", help="Also print the process chain claudestra judged the caller by.")
     ] = False,
+    as_json: AsJson = False,
 ) -> None:
     """The caller, as the process chain shows it, whether it runs under Claude, and what it may do."""
     c: Ctx = ctx.obj
+    if as_json:
+        me = refusing(Whoami().perform)
+        sub = me.subject
+        print(
+            json.dumps(
+                {
+                    "kind": sub.kind,
+                    "session": sub.session,
+                    "name": sub.name,
+                    "describe": sub.describe(),
+                    "folder": str(sub.folder) if sub.folder else None,
+                    "restricted": me.restricted,
+                    "chain": [p.describe() for p in me.chain],
+                    "managed_by": me.managed_by,
+                    "may": me.may,
+                    "spawn_and_hire": me.spawn_in,
+                },
+                indent=2,
+            )
+        )
+        return
     if chain:
         for line in describe_chain(c.fs):
             out.print(Text(line, style="bold" if "session" in line else "dim"))
@@ -216,12 +264,16 @@ def whoami(
         out.print(
             Text(f"may {verb}: ", style="bold") + Text(", ".join(names) or "nothing", style="green" if names else "dim")
         )
+    out.print(Text("may spawn and hire: ", style="bold") + Text(me.spawn_in))
 
 
 @app.command()
-def check(ctx: typer.Context) -> None:
+def check(ctx: typer.Context, as_json: AsJson = False) -> None:
     """trust.yaml and staff.d/ against this machine."""
     problems, warnings = refusing(Check().perform)
+    if as_json:
+        print(json.dumps({"errors": problems, "warnings": warnings}, indent=2))
+        raise typer.Exit(1 if problems else 0)
     for p in problems:
         out.print(Text("error    ", style="bold red") + Text(p))
     for w in warnings:
@@ -254,10 +306,23 @@ def audit(
     ] = False,
     dry: Dry = False,
     yes: Yes = False,
+    as_json: AsJson = False,
 ) -> None:
     """What needs attention: forks, subagent copies, links, redirects, orphans, stale state. Read-only."""
     found = 0
-    for name, findings in refusing(Audit(reports).perform).items():
+    result = refusing(Audit(reports).perform)
+    if as_json and not fix:
+        print(
+            json.dumps(
+                {
+                    n: [{"subject": f.subject, "detail": f.detail, "kind": type(f).__name__} for f in fs]
+                    for n, fs in result.items()
+                },
+                indent=2,
+            )
+        )
+        raise typer.Exit(1 if any(result.values()) else 0)
+    for name, findings in result.items():
         found += len(findings)
         out.print(
             Text(f"{name:<10} ", style="bold")
@@ -287,9 +352,13 @@ def doctor(
     deep: Annotated[
         bool, typer.Option("--deep", help="Read every record of every transcript, not only heads and tails.")
     ] = False,
+    as_json: AsJson = False,
 ) -> None:
     """Check on this machine every fact about Claude Code's files that claudestra relies on (DESIGN.md §3)."""
     results = refusing(Doctor(names, deep).perform)
+    if as_json:
+        print(json.dumps([{"name": r.name, "status": r.status, "detail": r.detail} for r in results], indent=2))
+        raise typer.Exit(1 if any(r.status == checks.FAIL for r in results) else 0)
     style = {checks.PASS: "green", checks.WARN: "yellow", checks.FAIL: "bold red", checks.NA: "dim"}
     t = Table(box=None, show_header=False, pad_edge=False)
     t.add_column(no_wrap=True)
@@ -307,16 +376,61 @@ def _offer_remote_control(c: Ctx) -> bool:
     """At the user's terminal, offer to turn Remote Control on where the user's settings can; whether it did."""
     if not interactive() or c.subject.kind != "human" or remote_control.effective(c.fs)[0] is True:
         return False
-    if not questionary.confirm("Turn Remote Control on for every session (claudestra enable-remote-control)?").ask():
+    if not questionary.confirm("Turn Remote Control on for every session (claudestra install remote-control)?").ask():
         return False
     lines(refusing(lambda: c.enable_remote_control().perform(go_ahead(True, False))) or [], "green")
     return True
 
 
 @app.command()
-def permissions() -> None:
+def log(
+    ctx: typer.Context,
+    session: Annotated[
+        str | None,
+        typer.Argument(help="Only what was done to this session.", autocompletion=ANY.complete, show_default=False),
+    ] = None,
+    last: Annotated[int, typer.Option("--last", help="How many entries to show, newest last.")] = 50,
+    as_json: AsJson = False,
+) -> None:
+    """What claudestra has done on this machine: who did what to which session, and when."""
+    from ..actions.log import Log
+
+    c: Ctx = ctx.obj
+    sid = ANY.get(session).id if session else None
+    entries = refusing(Log(sid, last).perform)
+    if as_json:
+        print(json.dumps(entries, indent=2))
+        return
+    t = Table(box=None, header_style="bold", pad_edge=False)
+    for col in ("at", "action", "session", "by", "detail"):
+        t.add_column(col, no_wrap=col in ("at", "action", "session"), style="dim" if col == "at" else None)
+    for e in entries:
+        subject = str(e.get("subject", ""))
+        t.add_row(
+            str(e.get("at", ""))[:19].replace("T", " "),
+            str(e.get("action", "")),
+            c.name_of(subject) or subject[:8],
+            str(e.get("caller", "")),
+            str(e.get("detail", "")),
+        )
+    out.print(t)
+
+
+@app.command()
+def permissions(as_json: AsJson = False) -> None:
     """Who may take each action: on a session, by the caller's relation to it; otherwise, by the caller's kind."""
     relations, rules = refusing(Permissions().perform)
+    if as_json:
+
+        def rule(r) -> dict:
+            if isinstance(r, Relations):
+                return {"relations": sorted(r.allowed), "to_folder": isinstance(r, ToFolder)}
+            if isinstance(r, Kinds):
+                return {"kinds": sorted(r.kinds)}
+            return {"anyone": r.note}
+
+        print(json.dumps({"relations": relations, "actions": {v: rule(r) for v, r in rules.items()}}, indent=2))
+        return
     t = Table(box=None, header_style="bold", pad_edge=False)
     t.add_column("action", style="bold", no_wrap=True)
     for r in relations:

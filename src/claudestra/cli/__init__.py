@@ -2,7 +2,7 @@
 is the order `claudestra --help` and the menu list them in."""
 
 # isort: off
-from . import read, staff, sessions, machines, trust  # noqa: F401
+from . import read, staff, sessions, machines, trust, setup  # noqa: F401
 from .base import app
 
 # isort: on

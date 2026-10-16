@@ -1,7 +1,7 @@
 """trust.yaml and staff.d/ (DESIGN.md §6): who may act on which session.
 
 trust.yaml is the user's, written through `claudestra trust`. The staff files in staff.d/ are claudestra's,
-written by `claudestra hire` and changed by rename, move, fix-name and describe; a dismissed staffer's waits in
+written by `claudestra staff hire` and changed by rename, move, fix-name and describe; a dismissed staffer's waits in
 staff-dismissed.d/. Trust never comes from a staff file except through the folder check in caller.py.
 Each is named by its session's full ID.
 """
@@ -21,7 +21,9 @@ from .portable import atomic_write_text, slug
 SCOPES = ("device", "folder")
 STAFF = "staff.d"  # a staffer's staff file, <session ID>.yaml, written by claudestra
 DISMISSED = "staff-dismissed.d"  # a dismissed staffer's staff file, as it was; rehiring moves it back
-STAFF_HEADER = "# Written by `claudestra hire`; claudestra changes it, as rename, move, fix-name and describe do.\n"
+STAFF_HEADER = (
+    "# Written by `claudestra staff hire`; claudestra changes it, as rename, move, fix-name and describe do.\n"
+)
 CONFIG_ENV = "CLAUDESTRA_CONFIG"  # overrides where the config is; honoured for the user only, as --config is
 
 

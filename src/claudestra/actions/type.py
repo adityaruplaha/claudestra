@@ -1,4 +1,4 @@
-"""`claudestra type`: type one line into a staffer running in claudestra's tmux, and press Enter.
+"""`claudestra session type`: type one line into a staffer running in claudestra's tmux, and press Enter.
 
 Refused while the staffer is mid-turn or its prompt holds unsent text, so nothing anyone was writing is
 sent or overwritten; a dimmed suggestion does not count, since typing replaces it.

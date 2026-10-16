@@ -177,14 +177,29 @@ class Workflow:
 
     def run(self) -> list[Any]:
         results: list[Any] = []
+        done = 0
+        failure: BaseException | None = None
         try:
             for step in self.steps:
                 step.check()
                 results.append(step.run())
-        finally:
-            for step in self.always:
+                done += 1
+        except BaseException as e:  # noqa: BLE001 - re-raised below, after the closing steps
+            failure = e
+        closing: list[str] = []
+        for step in self.always:  # every closing step is tried, and none hides the failure that came first
+            try:
                 step.check()
                 results.append(step.run())
+            except Exception as e:  # noqa: BLE001
+                closing.append(f"{step.verb}: {e}")
+        if failure is not None:
+            if isinstance(failure, Refused):
+                note = f"; then {'; '.join(closing)}" if closing else ""
+                raise Refused(f"{failure} (after {done} of {len(self.steps)} steps{note})") from failure
+            raise failure
+        if closing:
+            raise Refused(f"the work was done, but closing it failed: {'; '.join(closing)}")
         return results
 
 

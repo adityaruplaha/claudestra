@@ -46,20 +46,20 @@ def as_unscoped(home: Home, monkeypatch: pytest.MonkeyPatch):
 def test_move_and_trash_and_restore_and_purge(home: Home, as_him, tmp_path: Path):
     w, x = home.folder("w"), home.folder("x")
     tr = aged(home.transcript(A, w))
-    r = run(app, [*home.cli_args(), "move", A, str(x), "--dry-run"])
+    r = run(app, [*home.cli_args(), "session", "move", A, str(x), "--dry-run"])
     assert r.exit_code == 0 and "dry run" in r.output and tr.exists()
-    r = run(app, [*home.cli_args(), "move", A, str(x), "-y"])
+    r = run(app, [*home.cli_args(), "session", "move", A, str(x), "-y"])
     assert r.exit_code == 0 and "moved" in r.output and not tr.exists()
-    r = run(app, [*home.cli_args(), "trash", A, "--recent-minutes", "0", "--dry-run"])
+    r = run(app, [*home.cli_args(), "trash", "add", A, "--recent-minutes", "0", "--dry-run"])
     assert r.exit_code == 0 and f"trash {A}" in r.output and "dry run" in r.output
-    r = run(app, [*home.cli_args(), "trash", A, "--recent-minutes", "0", "-y"])
+    r = run(app, [*home.cli_args(), "trash", "add", A, "--recent-minutes", "0", "-y"])
     assert r.exit_code == 0 and "trashed" in r.output
     [(entry, _)] = trash_ops.entries(home.setup()[0])
-    r = run(app, [*home.cli_args(), "restore", entry.name, "--dry-run"])
+    r = run(app, [*home.cli_args(), "trash", "restore", entry.name, "--dry-run"])
     assert r.exit_code == 0 and "would restore" in r.output and trash_ops.entries(home.setup()[0])
-    r = run(app, [*home.cli_args(), "restore", entry.name, "-y"])
+    r = run(app, [*home.cli_args(), "trash", "restore", entry.name, "-y"])
     assert r.exit_code == 0 and "restored" in r.output and not trash_ops.entries(home.setup()[0])
-    r = run(app, [*home.cli_args(), "purge", "--older-than", "1", "--dry-run"])
+    r = run(app, [*home.cli_args(), "trash", "purge", "--older-than", "1", "--dry-run"])
     assert r.exit_code == 0 and "nothing that old" in r.output
 
 
@@ -67,13 +67,13 @@ def test_start_stop_compact_and_type_plans(home: Home, as_him):
     home.transcript(A, home.folder("w"))
     home.staff_file(A, "one", {HERE: "~/w"})
     claude = ["--claude", "/bin/sh"]
-    r = run(app, [*home.cli_args(), "start", "one", *claude, "--dry-run", *SOCKET])
+    r = run(app, [*home.cli_args(), "session", "start", "one", *claude, "--dry-run", *SOCKET])
     assert r.exit_code == 0 and "would start  one" in r.output
-    r = run(app, [*home.cli_args(), "stop", "one", "--dry-run", *SOCKET])
+    r = run(app, [*home.cli_args(), "session", "stop", "one", "--dry-run", *SOCKET])
     assert r.exit_code == 0 and "not here  one" in r.output
-    r = run(app, [*home.cli_args(), "compact", A, *claude, "--dry-run", *SOCKET])
+    r = run(app, [*home.cli_args(), "session", "compact", A, *claude, "--dry-run", *SOCKET])
     assert r.exit_code == 0 and f"compact {A}" in r.output and "dry run" in r.output
-    r = run(app, [*home.cli_args(), "type", "one", "hello", "--dry-run", *SOCKET])
+    r = run(app, [*home.cli_args(), "session", "type", "one", "hello", "--dry-run", *SOCKET])
     assert r.exit_code == 1 and "not running in claudestra's tmux" in r.output
 
 
@@ -89,7 +89,7 @@ def test_trust_and_audit_fix_and_the_login_unit_dry_runs(home: Home, as_him):
     assert "'one' -> 'one renamed'" in r.output and "dry run" in r.output
     r = run(app, [*home.cli_args(), "audit", "names", "--fix", "-y"])
     assert r.exit_code == 0 and "fixed 1" in r.output
-    r = run(app, [*home.cli_args(), "install-systemd-user-unit", "--dry-run"])
+    r = run(app, [*home.cli_args(), "install", "login-unit", "--dry-run"])
     assert r.exit_code == 0 and "would write" in r.output
 
 
@@ -100,12 +100,12 @@ def test_an_unscoped_session_is_refused(home: Home, as_unscoped):
     aged(home.transcript(A, home.folder("w")))
     home.staff_file(A, "one", {HERE: "~/w"})
     for args in (
-        ["move", A, str(home.folder("x")), "-y"],
-        ["trash", A, "--recent-minutes", "0", "-y"],
-        ["purge", "--older-than", "1", "-y"],
+        ["session", "move", A, str(home.folder("x")), "-y"],
+        ["trash", "add", A, "--recent-minutes", "0", "-y"],
+        ["trash", "purge", "--older-than", "1", "-y"],
         ["trust", "grant", A, "folder", "-y"],
-        ["attach"],
-        ["stop", "one", "-y", *SOCKET],
+        ["session", "attach"],
+        ["session", "stop", "one", "-y", *SOCKET],
     ):
         r = run(app, [*home.cli_args(), *args])
         assert r.exit_code == 1 and "refused" in r.output, (args, r.output)
@@ -115,17 +115,17 @@ def test_an_unscoped_session_is_refused(home: Home, as_unscoped):
 def test_preamble_refuses_a_config_with_errors_and_a_failing_doctor_check(home: Home, as_him):
     aged(home.transcript(A, home.folder("w")))
     (home.config / "staff.d" / "not-a-session-id.yaml").write_text('name: "x"\nfolder: {}\ndescription: d\n')
-    r = run(app, [*home.cli_args(), "rename", A, "new", "-y"])
+    r = run(app, [*home.cli_args(), "session", "rename", A, "new", "-y"])
     assert r.exit_code == 1 and "the config has errors" in r.output
     (home.config / "staff.d" / "not-a-session-id.yaml").unlink()
     tr = home.transcript(B, home.folder("w"))
     with tr.open("a") as fh:  # a record type claudestra does not know only warns
         fh.write(json.dumps({"type": "something-new", "sessionId": B}) + "\n")
-    r = run(app, [*home.cli_args(), "rename", A, "new", "-y", "--dry-run"])
+    r = run(app, [*home.cli_args(), "session", "rename", A, "new", "-y", "--dry-run"])
     assert r.exit_code == 0
     with tr.open("a") as fh:  # another session's ID in B's transcript, which identity rests on
         fh.write(json.dumps({"type": "user", "sessionId": A}) + "\n")
-    r = run(app, [*home.cli_args(), "rename", A, "new", "-y"])
+    r = run(app, [*home.cli_args(), "session", "rename", A, "new", "-y"])
     assert r.exit_code == 1 and "doctor fails" in r.output and "transcript-ids" in r.output
 
 
@@ -196,9 +196,9 @@ def test_send_on_the_command_line_needs_the_full_id_typed(
     monkeypatch.setattr(transfer, "SSHTransport", lambda conf: lt)
     (home.config / "trust.yaml").write_text((home.config / "trust.yaml").read_text() + "    ssh: stand-in\n")
     monkeypatch.setattr(ui.questionary, "text", lambda *a, **k: Answer(A[:8]))  # not the full ID
-    r = run(app, [*home.cli_args(), "send", A, HERE, "--to", str(far_home / "dest")])
+    r = run(app, [*home.cli_args(), "machine", "send", A, HERE, "--to", str(far_home / "dest")])
     assert r.exit_code == 1 and "did not confirm" in r.output and tr.exists()
-    r = run(app, [*home.cli_args(), "send", A, HERE, "--to", str(far_home / "dest"), "--dry-run"])
+    r = run(app, [*home.cli_args(), "machine", "send", A, HERE, "--to", str(far_home / "dest"), "--dry-run"])
     assert r.exit_code == 0 and tr.exists()
 
 
@@ -223,9 +223,36 @@ def test_every_reading_command_prints(home: Home, as_him):
 
 def test_hire_and_dismiss_on_the_command_line(home: Home, as_him):
     home.transcript(A, home.folder("w"))
-    r = run(app, [*home.cli_args(), "hire", A, "--description", "Works on w.", "--dry-run"])
+    r = run(app, [*home.cli_args(), "staff", "hire", A, "--description", "Works on w.", "--dry-run"])
     assert r.exit_code == 0 and f"hire {A}" in r.output and not (home.config / "staff.d" / f"{A}.yaml").exists()
-    r = run(app, [*home.cli_args(), "hire", A, "--name", "one", "--description", "Works on w.", "-y"])
+    r = run(app, [*home.cli_args(), "staff", "hire", A, "--name", "one", "--description", "Works on w.", "-y"])
     assert r.exit_code == 0 and "hired" in r.output
-    r = run(app, [*home.cli_args(), "dismiss", "one", "-y", *SOCKET])
+    r = run(app, [*home.cli_args(), "staff", "dismiss", "one", "-y", *SOCKET])
     assert r.exit_code == 0 and (home.config / "staff-dismissed.d" / f"{A}.yaml").exists()
+
+
+def test_the_login_unit_runs_autostart_and_nothing_else(home: Home, capsys):
+    import typer
+
+    from claudestra.cli.base import Ctx
+    from claudestra.cli.staff import _lifecycle
+    from claudestra.ops import unit
+
+    assert "ExecStart=/x/claudestra autostart --claude /x/claude" in unit.unit_text(["/x/claudestra"], "/x/claude")
+    home.transcript(A, home.folder("w"))
+    home.staff_file(A, "one", {HERE: "~/w"})
+    home.acting(Caller("login"))
+    with pytest.raises(typer.Exit):  # `session start one`, as the login unit
+        _lifecycle(Ctx(), ["one"], True, False, SOCKET[1], False, True, True)
+    assert "only runs `claudestra autostart`" in capsys.readouterr().err
+
+
+def test_every_reading_command_prints_json(home: Home, as_him):
+    aged(home.transcript(A, home.folder("w")))
+    home.staff_file(A, "one", {HERE: "~/w"})
+    for args in (
+        ["ls"], ["show", A], ["summary", A], ["whoami"], ["check"], ["audit"], ["doctor", "versions"],
+        ["permissions"], ["preferences"], ["log"], ["staff", "list"], ["trash", "list"], ["machine", "list"],
+    ):  # fmt: skip
+        r = run(app, [*home.cli_args(), *args, "--json"])
+        json.loads(r.stdout), args

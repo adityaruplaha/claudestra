@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..session import Session
 from ..trust import StaffFile
@@ -15,6 +15,7 @@ class Listing:
     elsewhere: list[StaffFile]  # staffers with a folder here whose session is not on this machine
     total: int  # every session on this machine
     running: int
+    unwritten: list = field(default_factory=list)  # runs whose session has no transcript yet (model.Run)
 
 
 class List(ReadOnlyAction):
@@ -32,4 +33,5 @@ class List(ReadOnlyAction):
             key=lambda s: (s.staff_file is None, not s.runs, -s.mtime),
         )
         elsewhere = [a for a in c.trust.staff if a.folder and a.session not in m.sessions]
-        return Listing([Session(r.session_id) for r in records], elsewhere, len(m.sessions), len(m.runs))
+        unwritten = [r for r in m.runs if r.session_id not in m.sessions]
+        return Listing([Session(r.session_id) for r in records], elsewhere, len(m.sessions), len(m.runs), unwritten)

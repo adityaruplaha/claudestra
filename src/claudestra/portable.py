@@ -1,6 +1,6 @@
 """The jobs claudestra does on both machines, each stated once, in the standard library only.
 
-claudestra imports this module, and `claudestra send` and `claudestra fetch` ship its source, followed by
+claudestra imports this module, and `claudestra machine send` and `claudestra machine fetch` ship its source, followed by
 remote_helper.py's, to the other machine as one script, so that side runs this same code rather than a
 copy of it. Nothing here may import from the rest of the package.
 """

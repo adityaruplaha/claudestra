@@ -1,4 +1,4 @@
-"""`claudestra move`: refile a stopped session under another folder on this machine.
+"""`claudestra session move`: refile a stopped session under another folder on this machine.
 
 What moves and why is in DESIGN.md §9. The cwd fields are rewritten first, in place and backed up, and
 the files are moved after; a failure anywhere puts every move back and restores the backups, so a move

@@ -1,5 +1,5 @@
-"""`claudestra dismiss`: take a staffer off the staff. Its staff file moves to staff-dismissed.d/ as it
-is, and `claudestra hire` brings it back; its session is untouched, and so is any scope it holds in
+"""`claudestra staff dismiss`: take a staffer off the staff. Its staff file moves to staff-dismissed.d/ as it
+is, and `claudestra staff hire` brings it back; its session is untouched, and so is any scope it holds in
 trust.yaml, which it holds again once rehired. Refused while it runs in claudestra's tmux or a machine
 starts it at login, since either would leave something nobody answers for.
 """
@@ -36,20 +36,23 @@ class Dismiss(SessionAction):
             raise Refused(f"{st.staff_name!r} starts at login on {', '.join(hosts)}; take it out of autostart first")
         if (w := st.window(self.socket)) and not w.dead:
             raise Refused(f"{st.staff_name!r} is running in claudestra's tmux; stop it first")
-        if staff_ops.dismissed_path(c.trust.config, st.id).exists():
-            raise Refused(f"{st.id} also has a file in staff-dismissed.d/; settle the two by hand")
 
     def describe(self) -> list[str]:
         st = self.staffer
         scope = f"; its {st.scope} scope stays in trust.yaml for a rehire" if st.scope else ""
-        return [f"dismiss {st.staff_name!r} ({st.id}): {st.staff_file.file.name} to staff-dismissed.d/{scope}"]
+        older = (
+            " (over an older dismissed copy)"
+            if staff_ops.dismissed_path(self.context.trust.config, st.id).exists()
+            else ""
+        )
+        return [f"dismiss {st.staff_name!r} ({st.id}): {st.staff_file.file.name} to staff-dismissed.d/{older}{scope}"]
 
     def run(self) -> None:
         st = self.staffer
         name = st.staff_name
-        staff_ops.dismiss(self.context.trust.config, st.id)
+        self.older = staff_ops.dismiss(self.context.trust.config, st.id)
         log(self.subject, "dismiss", st.id, f"{name!r}")
 
     def undo(self) -> None:
-        staff_ops.undismiss(self.context.trust.config, self.staffer.id)
+        staff_ops.undismiss(self.context.trust.config, self.staffer.id, getattr(self, "older", None))
         self.context.refresh()

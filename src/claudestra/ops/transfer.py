@@ -1,4 +1,4 @@
-"""`claudestra send` and `claudestra fetch`: move a stopped session between the machines (DESIGN.md §8).
+"""`claudestra machine send` and `claudestra machine fetch`: move a stopped session between the machines (DESIGN.md §8).
 
 The session's stores are staged, their cwd fields rewritten for the destination, copied with
 checksums verified on both sides, and only then removed from the source into its trash, so the
@@ -24,6 +24,7 @@ from ..caller import Caller, Refused
 from ..claude_fs import KEYED_STORES, UUID, ClaudeFS
 from ..model import SessionRecord
 from ..trust import MachineConf, Trust, expand, machine_problem, set_staff_folder
+from . import memory as memory_ops
 from . import rewrite
 from . import trash as trash_ops
 from .common import (
@@ -160,6 +161,7 @@ class TransferPlan:
     remote: str
     files: dict[str, str] = field(default_factory=dict)  # source rel -> destination rel
     cwd_changes: dict[str, int] = field(default_factory=dict)
+    memory: dict[str, str] = field(default_factory=dict)  # --copy-memory: source rel -> destination rel, added only
 
     def describe(self) -> list[str]:
         here, there = (
@@ -171,7 +173,8 @@ class TransferPlan:
             f"{self.direction} {self.session_id} ({self.name or '-'}): {here} -> {there}",
             f"  {len(self.files)} files",
         ]
-        return out + [f"  cwd  {n} x {k}" for k, n in sorted(self.cwd_changes.items(), key=lambda kv: -kv[1])]
+        out += [f"  cwd  {n} x {k}" for k, n in sorted(self.cwd_changes.items(), key=lambda kv: -kv[1])]
+        return out + ([f"  memory {len(self.memory)} files, added to the project's there"] if self.memory else [])
 
 
 def _check_remote(probe: dict, t: Transport, machines: dict[str, MachineConf]) -> None:
@@ -210,6 +213,7 @@ def send(
     src_folder: Path | None,
     dry: bool,
     confirm: Callable[[str], bool],
+    copy_memory: bool = False,
 ) -> TransferPlan:
     _check_reachable(t, machines)
     refuse_if_running(fs, s)
@@ -276,6 +280,11 @@ def send(
         if rel.endswith(".jsonl"):
             for k, n in rewrite.count(fs.root / rel, mapped).items():
                 plan.cwd_changes[k] = plan.cwd_changes.get(k, 0) + n
+    if copy_memory:
+        here, dslug = memory_ops.local(fs, s.homes[0]), probe["filed"][dest]
+        there = t.helper({"action": "sha", "files": [memory_ops.rel(dslug, n) for n in here]}) if here else {}
+        names = memory_ops.plan(here, {n: there.get(memory_ops.rel(dslug, n)) for n in here})
+        plan.memory = {memory_ops.rel(s.homes[0], n): memory_ops.rel(dslug, n) for n in names}
     if dry:
         return plan
     if not confirm(s.session_id):
@@ -321,6 +330,8 @@ def send(
             remove_tree(staging)
     if s.staff_file and dest_folder:
         set_staff_folder(s.staff_file, t.hostname, Path(dest), t.home)
+    if plan.memory:
+        _send_memory(fs, t, s.session_id, plan.memory)
     entry = {
         "action": "send",
         "session": s.session_id,
@@ -345,6 +356,7 @@ def fetch(
     dest_folder: Path | None,
     staff_folders: dict[str, str],
     dry: bool,
+    copy_memory: bool = False,
 ) -> TransferPlan:
     if not UUID.match(sid):
         raise Refused(f"{sid!r} is not a full session ID")
@@ -396,6 +408,14 @@ def fetch(
         raise Refused("two of the session's files would land on the same path")
     if clash := [d for d in plan.files.values() if (fs.root / d).exists()]:
         raise Refused(f"{fs.root / clash[0]} already exists")
+    if copy_memory:
+        dslug = fs.filed_slug(dest)
+        mem = t.helper({"action": "list", "stores": [memory_ops.rel(homes[0])]}).get("files", [])
+        there_sha = t.helper({"action": "sha", "files": mem}) if mem else {}
+        prefix = memory_ops.rel(homes[0]) + "/"
+        theirs = {r[len(prefix) :]: there_sha.get(r) for r in mem if r.startswith(prefix)}
+        names = memory_ops.plan({n: h for n, h in theirs.items() if h}, memory_ops.local(fs, dslug))
+        plan.memory = {memory_ops.rel(homes[0], n): memory_ops.rel(dslug, n) for n in names}
     if dry:
         return plan
 
@@ -435,4 +455,45 @@ def fetch(
     }
     log(caller, "fetch", sid, json.dumps(entry))
     t.helper({"action": "log", "entry": {**entry, "caller": caller.describe()}})
+    if plan.memory:
+        _fetch_memory(fs, t, sid, plan.memory)
     return plan
+
+
+def _send_memory(fs: ClaudeFS, t: Transport, sid: str, files: dict[str, str]) -> None:
+    """After the session has arrived: push the memory files the far side lacks, and check they arrived."""
+    staging = STAGING / f"{portable.stamp()}-{sid}-memory"
+    try:
+        for src, dst in files.items():
+            (staging / dst).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(fs.root / src, staging / dst)
+        want = {dst: portable.sha256(staging / dst) for dst in files.values()}
+        there = t.helper({"action": "sha", "files": list(want)})
+        t.push(staging, [d for d in want if there.get(d) is None])  # still missing there: added, nothing replaced
+        got = t.helper({"action": "sha", "files": list(want)})
+        if bad := [d for d, h in want.items() if got.get(d) != h]:
+            raise Refused(f"{len(bad)} memory files did not arrive intact (first: {bad[0]})")
+    except Exception as e:
+        raise Refused(f"the session was sent, but copying the project's memory failed: {e}") from e
+    finally:
+        if staging.exists():
+            remove_tree(staging)
+
+
+def _fetch_memory(fs: ClaudeFS, t: Transport, sid: str, files: dict[str, str]) -> None:
+    """After the session has arrived: pull the memory files this machine lacks, check them, and add them."""
+    staging = STAGING / f"{portable.stamp()}-{sid}-memory"
+    try:
+        t.pull(list(files), staging)
+        want = t.helper({"action": "sha", "files": list(files)})
+        if bad := [r for r in files if portable.sha256(staging / r) != want.get(r)]:
+            raise Refused(f"{len(bad)} memory files did not arrive intact (first: {bad[0]})")
+        for src, dst in files.items():
+            if not (fs.root / dst).exists():  # added only, never replacing
+                (fs.root / dst).parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(staging / src, fs.root / dst)
+    except Exception as e:
+        raise Refused(f"the session was fetched, but copying the project's memory failed: {e}") from e
+    finally:
+        if staging.exists():
+            remove_tree(staging)

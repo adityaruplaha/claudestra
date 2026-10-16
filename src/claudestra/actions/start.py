@@ -1,4 +1,4 @@
-"""`claudestra start`: resume a session in claudestra's tmux, with Remote Control on.
+"""`claudestra session start`: resume a session in claudestra's tmux, with Remote Control on.
 
 Any session whose folder is known can be started. A staffer runs by its name on the staff, from the
 folder its staff file gives; any other session by its title, from the folder it is filed under. Who

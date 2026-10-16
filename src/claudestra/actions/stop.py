@@ -1,4 +1,4 @@
-"""`claudestra stop`: stop a session running in claudestra's tmux; its conversation is kept."""
+"""`claudestra session stop`: stop a session running in claudestra's tmux; its conversation is kept."""
 
 from __future__ import annotations
 

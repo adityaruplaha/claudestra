@@ -231,15 +231,17 @@ class Context:
 
         return Purge(older_than_days)
 
-    def fetch(self, session_id: str, host: str, src: str | None = None, dest: Path | None = None):
+    def fetch(
+        self, session_id: str, host: str, src: str | None = None, dest: Path | None = None, copy_memory: bool = False
+    ):
         from .actions.fetch import Fetch
 
-        return Fetch(session_id, host, src, dest)
+        return Fetch(session_id, host, src, dest, copy_memory)
 
-    def attach(self, socket: str | None = None):
+    def attach(self, socket: str | None = None, session_id: str | None = None, name: str | None = None):
         from .actions.attach import Attach
 
-        return Attach(socket)
+        return Attach(socket, session_id, name)
 
     def install_login_unit(self):
         from .actions.install_unit import InstallUnit
@@ -250,6 +252,16 @@ class Context:
         from .actions.install_guard import InstallGuard
 
         return InstallGuard()
+
+    def spawn(self, folder, claude: str, prompt=None, name=None, staff: bool = False, description=None, socket=None):
+        from .actions.spawn import Spawn
+
+        return Spawn(folder, claude, prompt, name, staff, description, socket)
+
+    def install_completion(self, shell=None):
+        from .actions.install_completion import InstallCompletion
+
+        return InstallCompletion(shell)
 
     def enable_remote_control(self):
         from .actions.enable_remote_control import EnableRemoteControl

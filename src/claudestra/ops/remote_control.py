@@ -3,7 +3,7 @@
 Claude Code reads `remoteControlAtStartup` as tested against 2.1.300: `false` in a folder's own settings
 (`.claude/settings.json` or `settings.local.json`) turns it off there, whatever else says; otherwise the first
 of managed settings, the user's settings and the older copy in `~/.claude.json` that sets it decides; a
-folder's settings cannot turn it on. `claudestra enable-remote-control` sets it in the user's settings.
+folder's settings cannot turn it on. `claudestra install remote-control` sets it in the user's settings.
 """
 
 from __future__ import annotations

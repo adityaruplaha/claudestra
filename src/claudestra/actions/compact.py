@@ -1,7 +1,7 @@
-"""`claudestra compact`: compact a stopped session.
+"""`claudestra session compact`: compact a stopped session.
 
 Compaction needs the model, so a Claude Code process. The session is resumed in claudestra's tmux from
-the folder it is filed under, exactly as `claudestra start` would; `/compact` is typed into it once it is
+the folder it is filed under, exactly as `claudestra session start` would; `/compact` is typed into it once it is
 idle; and it is stopped again once its transcript records the compaction. It is authorized as one verb,
 and runs as a workflow of Start, waits, Type and Stop. A running session is refused: /compact is typed
 in it by hand.

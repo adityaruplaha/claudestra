@@ -1,4 +1,4 @@
-"""`claudestra restore`: put a trashed session back where it came from."""
+"""`claudestra trash restore`: put a trashed session back where it came from."""
 
 from __future__ import annotations
 

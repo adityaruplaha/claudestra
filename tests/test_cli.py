@@ -17,7 +17,7 @@ def test_no_terminal_never_prompts(home: Home, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(ui.questionary, "select", lambda *a, **k: pytest.fail("prompted without a terminal"))
     home.transcript(A, home.folder("w"))
     r = run(app, [*home.cli_args(), "show"])
-    assert r.exit_code == 1 and "only asks at a terminal" in r.output
+    assert r.exit_code == 1 and "only at a terminal" in r.output
 
 
 def test_picker_fills_a_missing_session(home: Home, at_terminal, monkeypatch: pytest.MonkeyPatch):
@@ -45,8 +45,17 @@ def test_menu_lists_commands_and_runs_the_chosen_one(home: Home, at_terminal, mo
 
     monkeypatch.setattr(app_mod.questionary, "select", select)
     r = run(app, home.cli_args())
-    assert "two-homes" in r.output and {"ls", "move", "trash", "send", "purge"} <= set(offered["names"])
+    assert "two-homes" in r.output and {
+        "ls",
+        "session move",
+        "trash add",
+        "machine send",
+        "trash purge",
+        "setup",
+    } <= set(offered["names"])
     assert "list" not in offered["names"]  # the hidden alias is not offered twice
+    monkeypatch.setattr(app_mod.questionary, "select", lambda *a, **k: Answer("trash list"))
+    assert run(app, home.cli_args()).exit_code == 0  # a group's command, reached through the menu
 
 
 def test_cancelled_picker_changes_nothing(home: Home, at_terminal, monkeypatch: pytest.MonkeyPatch):
@@ -58,12 +67,12 @@ def test_cancelled_picker_changes_nothing(home: Home, at_terminal, monkeypatch: 
 def test_confirmation(home: Home, as_him, at_terminal, monkeypatch: pytest.MonkeyPatch):
     tr = aged(home.transcript(A, home.folder("w")))
     monkeypatch.setattr(ui.questionary, "confirm", lambda *a, **k: Answer(False))
-    r = run(app, [*home.cli_args(), "rename", A, "new"])
+    r = run(app, [*home.cli_args(), "session", "rename", A, "new"])
     assert "nothing changed" in r.output and "new" not in tr.read_text()
-    r = run(app, [*home.cli_args(), "rename", A, "new", "--dry-run"])
+    r = run(app, [*home.cli_args(), "session", "rename", A, "new", "--dry-run"])
     assert "dry run" in r.output and "new" not in tr.read_text()
     monkeypatch.setattr(ui.questionary, "confirm", lambda *a, **k: pytest.fail("asked despite -y"))
-    r = run(app, [*home.cli_args(), "rename", A, "new", "-y"])
+    r = run(app, [*home.cli_args(), "session", "rename", A, "new", "-y"])
     assert r.exit_code == 0, r.output
     assert '"customTitle":"new"' in tr.read_text()
 
@@ -71,17 +80,17 @@ def test_confirmation(home: Home, as_him, at_terminal, monkeypatch: pytest.Monke
 def test_preamble_refuses_test_options_for_a_claude_session(home: Home, as_him, monkeypatch: pytest.MonkeyPatch):
     aged(home.transcript(A, home.folder("w")))
     monkeypatch.setattr(context_mod, "identify", lambda *a, **k: Caller("unscoped", B, "x", 1))
-    r = run(app, [*home.cli_args(), "rename", A, "new", "-y"])
+    r = run(app, [*home.cli_args(), "session", "rename", A, "new", "-y"])
     assert r.exit_code == 1 and "honoured for the user only" in r.output
     # The config override in the environment is refused the same way, so a staffer cannot hand itself a scope.
     monkeypatch.setenv("CLAUDESTRA_CONFIG", str(home.config))
-    r = run(app, ["rename", A, "new", "-y"])  # no test option given: the variable alone is refused
+    r = run(app, ["session", "rename", A, "new", "-y"])  # no test option given: the variable alone is refused
     assert r.exit_code == 1 and "honoured for the user only" in r.output
 
 
 def test_preamble_refuses_a_machine_not_in_trust(home: Home):
     aged(home.transcript(A, home.folder("w")))
-    r = run(app, [*home.cli_args(), "rename", A, "new", "-y"])
+    r = run(app, [*home.cli_args(), "session", "rename", A, "new", "-y"])
     assert r.exit_code == 1 and "does not match trust.yaml" in r.output
 
 
@@ -100,6 +109,19 @@ def test_list_is_ls(home: Home):
 
 
 def test_completion_prints_and_installs_nothing():
-    r = run(app, ["completion", "zsh"])
+    r = run(app, ["install", "completion", "--print", "zsh"])
     assert r.exit_code == 0 and "compdef" in r.output
     assert run(app, ["--install-completion"]).exit_code != 0  # the installer is not offered
+
+
+def test_a_shell_asking_for_completions_gets_them(tmp_path):
+    """Typer answers a shell only once its completion protocols are loaded, which claudestra does itself."""
+    import os
+    import subprocess
+    import sys
+
+    env = {**os.environ, "_CLAUDESTRA_COMPLETE": "complete_zsh", "_TYPER_COMPLETE_ARGS": "claudestra sess"}
+    env["HOME"] = str(tmp_path)
+    run_it = [sys.executable, "-c", "from claudestra.cli import app; app(prog_name='claudestra')"]
+    r = subprocess.run(run_it, env=env, capture_output=True, text=True, timeout=60)
+    assert '"session"' in r.stdout and "not supported" not in r.stdout + r.stderr

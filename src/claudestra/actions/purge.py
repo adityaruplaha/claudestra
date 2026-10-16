@@ -1,4 +1,4 @@
-"""`claudestra purge`: delete trash entries older than some days, for good. The user's alone."""
+"""`claudestra trash purge`: delete trash entries older than some days, for good. The user's alone."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""`claudestra enable-remote-control`: Remote Control on for every session, in Claude Code's user settings.
+"""`claudestra install remote-control`: Remote Control on for every session, in Claude Code's user settings.
 
 claudestra requires it (DESIGN.md §7.1), and `claudestra doctor remote-control` offers it. Turning it on
 lets every session on the machine be reached and driven through the user's account, so it is the user's alone.

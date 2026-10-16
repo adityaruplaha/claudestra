@@ -24,7 +24,7 @@ from pathlib import Path
 import libtmux
 
 from .. import portable
-from ..caller import Refused, transcript_problem
+from ..caller import Refused, filed_under, transcript_problem
 from ..claude_fs import ClaudeFS
 from . import TMUX_SESSION, Launch
 
@@ -37,13 +37,17 @@ DIM = "\x1b[2m"
 LEAD = re.compile(r"^(?:[ \xa0]|\x1b\[(?!2m)[0-9;]*m)*")  # spaces, and any styling but dim
 
 
+OPTION = "@claudestra_session"  # the window option holding its session's ID; its name is the session's name
+
+
 @dataclass
 class Window:
     id: str
-    name: str
+    name: str  # what tmux shows: the session's name
     dead: bool
     status: str
     pid: int | None
+    session: str = ""  # its session's ID, from the window option, or from the name a window had before 0.2.0
 
 
 class Tmux:
@@ -64,18 +68,29 @@ class Tmux:
     def windows(self) -> list[Window]:
         if not self.exists():
             return []
-        fmt = "#{window_id}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_pid}\t#{window_name}"
+        fmt = "#{window_id}\t#{pane_dead}\t#{pane_dead_status}\t#{pane_pid}\t#{" + OPTION + "}\t#{window_name}"
         out = []
         for line in self.run("list-windows", "-t", f"={self.session}", "-F", fmt):
-            wid, dead, status, pid, name = line.split("\t", 4)
-            out.append(Window(wid, name, dead == "1", status, int(pid) if pid.isdigit() else None))
+            wid, dead, status, pid, sid, name = line.split("\t", 5)
+            out.append(Window(wid, name, dead == "1", status, int(pid) if pid.isdigit() else None, sid or name))
         return out
 
     def window(self, session_id: str) -> Window | None:
-        """A staffer's window, named by its session ID, which a rename does not change.
+        """A session's window, found by the session ID it holds, which a rename does not change.
 
-        Matched here by exact name: tmux would read a target as a pattern."""
-        return next((w for w in self.windows() if w.name == session_id), None)
+        Matched here exactly: tmux would read a target as a pattern."""
+        return next((w for w in self.windows() if w.session == session_id), None)
+
+    def name_window(self, wid: str, name: str) -> None:
+        """Show the session's name on its window; the ID it is found by stays in its option."""
+        self.run("rename-window", "-t", wid, name)
+
+    def screen(self, wid: str, lines: int) -> list[str]:
+        """The window's last `lines` lines of screen and scrollback, as plain text, trailing blank lines dropped."""
+        rows = self.run("capture-pane", "-p", "-J", "-S", f"-{lines}", "-t", wid)
+        while rows and not rows[-1].strip():
+            rows.pop()
+        return rows[-lines:]
 
     def unsent(self, wid: str) -> str:
         """Text typed into Claude Code's prompt in the window and not sent, or "" when there is none.
@@ -87,7 +102,7 @@ class Tmux:
         plain = [ANSI.sub("", r) for r in rows]
         at = next((i for i in range(len(plain) - 1, -1, -1) if plain[i].lstrip().startswith("❯")), None)
         if at is None:
-            raise Refused("no Claude Code prompt is showing in its window; look at it with `claudestra attach`")
+            raise Refused("no Claude Code prompt is showing in its window; look at it with `claudestra session attach`")
         rest = LEAD.sub("", rows[at].split("❯", 1)[1])
         typed = [] if rest.startswith(DIM) or not ANSI.sub("", rest).strip() else [ANSI.sub("", rest).strip()]
         for line in plain[at + 1 :]:
@@ -132,16 +147,23 @@ def start(fs: ClaudeFS, host: str, t: Tmux, launch: Launch, claude: str, dry: bo
         raise Refused(
             f"{launch.name!r} is already running outside claudestra's tmux (pid {pid}); resuming it would fork it"
         )
-    if why := transcript_problem(fs, host, launch.session, launch.folder):
+    if launch.new:
+        if filed_under(fs, launch.session):
+            raise Refused(f"session {launch.session} exists already")
+    elif why := transcript_problem(fs, host, launch.session, launch.folder):
         raise Refused(why)
     if not launch.folder.is_dir():
         raise Refused(f"{launch.folder} does not exist")
     if not Path(claude).is_file():
         raise Refused(
-            f"claude is not at {claude}; if the login unit named that path, reinstall it with `claudestra install-systemd-user-unit`"
+            f"claude is not at {claude}; if the login unit named that path, reinstall it with `claudestra install login-unit`"
         )
 
-    argv = [claude, "--resume", launch.session, "--remote-control", launch.name]
+    if launch.new:
+        argv = [claude, "--session-id", launch.session, "--name", launch.name, "--remote-control", launch.name]
+        argv += [launch.prompt] if launch.prompt else []
+    else:
+        argv = [claude, "--resume", launch.session, "--remote-control", launch.name]
     env = {v: os.environ[v] for v in DESKTOP_VARS if os.environ.get(v)}
     if dry:
         return f"would start  {launch.name}  in {launch.folder}:  {shlex.join(argv)}"
@@ -174,6 +196,8 @@ def start(fs: ClaudeFS, host: str, t: Tmux, launch: Launch, claude: str, dry: bo
         wid = t.window(launch.session).id
     for opt, val in (("remain-on-exit", "on"), ("automatic-rename", "off"), ("allow-rename", "off")):
         t.run("set-option", "-w", "-t", wid, opt, val)
+    t.run("set-option", "-w", "-t", wid, OPTION, launch.session)  # found by this from now on
+    t.name_window(wid, launch.name)
     # Asked of the server only now that it exists: one started earlier, by anyone, may hold them.
     # PATH goes on env's command line: the shell tmux runs the command in, and tmux itself, would
     # otherwise put back their own.
@@ -195,7 +219,7 @@ def start(fs: ClaudeFS, host: str, t: Tmux, launch: Launch, claude: str, dry: bo
         if pid := portable.running_pid(fs.sessions, fs.proc, launch.session):
             return f"started   {launch.name} (pid {pid})"
         if (now := t.window(launch.session)) and now.dead:
-            return f"exited    {launch.name} at once (status {now.status}); its window is kept for `claudestra attach`"
+            return f"exited    {launch.name} at once (status {now.status}); its window is kept for `claudestra session attach`"
         time.sleep(0.25)
     return f"started   {launch.name}; no session file after {STARTUP_WAIT:g}s, so `claudestra ls` may show it stopped for a moment"
 
@@ -222,7 +246,7 @@ def stop(fs: ClaudeFS, t: Tmux, sid: str, name: str, dry: bool, force: bool) -> 
         t.run("send-keys", "-t", w.id, "C-c")
         time.sleep(0.5)
     deadline = time.monotonic() + 15
-    while time.monotonic() < deadline and not (t.window(sid) or w).dead:
+    while time.monotonic() < deadline and (now := t.window(sid)) is not None and not now.dead:
         time.sleep(0.5)
     now = t.window(sid)
     if now and not now.dead and now.pid:
@@ -285,8 +309,9 @@ def rename_in_window(fs: ClaudeFS, t: Tmux, sid: str, title: Path, w: Window, na
     while time.monotonic() < deadline:
         with contextlib.suppress(OSError, ValueError):
             if json.loads(title.read_text()).get("customTitle") == name:
+                t.name_window(w.id, name)
                 return
         time.sleep(0.25)
     raise Refused(
-        f"typed /rename into {w.id}, but it had not taken after {RENAME_WAIT:g}s; look with `claudestra attach`"
+        f"typed /rename into {w.id}, but it had not taken after {RENAME_WAIT:g}s; look with `claudestra session attach`"
     )

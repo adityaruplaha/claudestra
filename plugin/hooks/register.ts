@@ -1,11 +1,12 @@
 // claudestra's plugin: when a session starts, install the claudestra CLI this plugin pins, then put
-// claudestra's guard in place (DESIGN.md §6.5). The guard is the CLI's own, a PreToolUse hook and deny
+// claudestra's guard and shell completion in place (DESIGN.md §6.5, §10), and remind the user to run
+// `claudestra setup` until they have chosen their preferences. The guard is the CLI's own, a PreToolUse hook and deny
 // rules in the user's settings, so it holds whether or not this plugin is enabled; the plugin puts it
 // back at every session's start, and offers no way to leave it out.
 import type { EngineInterface, Register } from 'claude-code'
 
 // The claudestra this plugin installs; a test holds it to plugin.json's version.
-export const VERSION = '0.1.1'
+export const VERSION = '0.2.0'
 export const RELEASE = `git+https://github.com/adityaruplaha/claudestra@v${VERSION}`
 
 type Ran = { exitCode: number; stdout: string; stderr: string }
@@ -49,8 +50,12 @@ export async function ensure(io: Io, source: string): Promise<string | undefined
       return undefined
     }
   }
-  const guard = await io.run([cli, 'install-guard', '-y'])
+  const guard = await io.run([cli, 'install', 'guard', '-y'])
   if (guard?.exitCode !== 0) io.toast(`claudestra's guard could not be put in place: ${said(guard)}`)
+  await io.run([cli, 'install', 'completion', '-y']) // a convenience; a failure is not worth a toast
+  const prefs = await io.run([cli, 'preferences'])
+  if (prefs?.exitCode === 0 && prefs.stdout.includes('not chosen'))
+    io.toast('claudestra is not set up yet: run `claudestra setup` in a terminal')
   return cli
 }
 

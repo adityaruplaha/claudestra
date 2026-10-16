@@ -26,14 +26,16 @@ test('installs a claudestra other than the one it pins, then puts the guard in p
     'uv tool dir --bin': { exitCode: 0, stdout: '/b\n' },
     '/b/claudestra --version': { exitCode: 0, stdout: '0.0.1\n' },
     'uv tool install': { exitCode: 0 },
-    '/b/claudestra install-guard -y': { exitCode: 0 },
+    '/b/claudestra install guard -y': { exitCode: 0 },
   })
   expect(await ensure(s.io, RELEASE)).toBe('/b/claudestra')
   expect(s.ran).toEqual([
     'uv tool dir --bin',
     '/b/claudestra --version',
     `uv tool install --force --quiet ${RELEASE}`,
-    '/b/claudestra install-guard -y',
+    '/b/claudestra install guard -y',
+    '/b/claudestra install completion -y',
+    '/b/claudestra preferences',
   ])
   expect(s.toasts).toEqual([])
 })
@@ -42,10 +44,22 @@ test('the pinned claudestra is not reinstalled, and the guard goes back all the 
   const s = standIns({
     'uv tool dir --bin': { exitCode: 0, stdout: '/b\n' },
     '/b/claudestra --version': { exitCode: 0, stdout: `${VERSION}\n` },
-    '/b/claudestra install-guard -y': { exitCode: 0 },
+    '/b/claudestra install guard -y': { exitCode: 0 },
   })
   await ensure(s.io, RELEASE)
-  expect(s.ran).toEqual(['uv tool dir --bin', '/b/claudestra --version', '/b/claudestra install-guard -y'])
+  expect(s.ran.slice(0, 3)).toEqual(['uv tool dir --bin', '/b/claudestra --version', '/b/claudestra install guard -y'])
+})
+
+test('until the user has chosen their preferences, it reminds them to run setup', async () => {
+  const s = standIns({
+    'uv tool dir --bin': { exitCode: 0, stdout: '/b\n' },
+    '/b/claudestra --version': { exitCode: 0, stdout: `${VERSION}\n` },
+    '/b/claudestra install guard -y': { exitCode: 0 },
+    '/b/claudestra install completion -y': { exitCode: 0 },
+    '/b/claudestra preferences': { exitCode: 0, stdout: 'fan-out-model: -  (not chosen, so ask the user)\n' },
+  })
+  await ensure(s.io, RELEASE)
+  expect(s.toasts.join()).toContain('claudestra setup')
 })
 
 test('without uv it says the guard is not in place', async () => {

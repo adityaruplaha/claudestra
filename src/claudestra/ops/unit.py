@@ -1,4 +1,4 @@
-"""`claudestra install-systemd-user-unit`: the login unit (DESIGN.md §7).
+"""`claudestra install login-unit`: the login unit (DESIGN.md §7).
 
 The unit records the exact paths of claudestra and claude found when it is installed, since the systemd
 user manager's PATH need not hold either; when claude moves, the unit is reinstalled.
@@ -36,7 +36,7 @@ def claude_path() -> str:
 
 
 def unit_text(cmd: list[str], claude: str) -> str:
-    return f"""# Written by `claudestra install-systemd-user-unit` (DESIGN.md §7). It records the exact paths of claudestra
+    return f"""# Written by `claudestra install login-unit` (DESIGN.md §7). It records the exact paths of claudestra
 # and claude found when it was installed, since this manager's PATH need not hold them. If claude
 # moves, or the unit fails with "claude is not at …", reinstall the unit to record the new path.
 [Unit]
@@ -48,7 +48,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart={shlex.join([*cmd, "start", "--autostart", "--claude", claude])}
+ExecStart={shlex.join([*cmd, "autostart", "--claude", claude])}
 KillMode=process
 
 [Install]
@@ -78,4 +78,20 @@ def install(dry: bool) -> list[str]:
         r = subprocess.run(["systemctl", "--user", *args], capture_output=True, text=True)
         out.append(f"systemctl --user {' '.join(args)}: " + ("ok" if r.returncode == 0 else r.stderr.strip()))
     out.append(f"it runs at the next login; `systemctl --user start {UNIT}` runs it now")
+    return out
+
+
+def uninstall(dry: bool) -> list[str]:
+    """Disable and remove the login unit; it stops nothing that is running."""
+    path = unit_path()
+    if not path.exists():
+        return []
+    if dry:
+        return [f"would run: systemctl --user disable {UNIT}", f"would remove {path}"]
+    out = []
+    r = subprocess.run(["systemctl", "--user", "disable", UNIT], capture_output=True, text=True)
+    out.append(f"systemctl --user disable {UNIT}: " + ("ok" if r.returncode == 0 else r.stderr.strip()))
+    path.unlink()
+    out.append(f"removed {path}")
+    subprocess.run(["systemctl", "--user", "daemon-reload"], capture_output=True)
     return out

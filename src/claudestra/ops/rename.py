@@ -1,4 +1,4 @@
-"""`claudestra rename`: rename a stopped session as `/rename` does inside one.
+"""`claudestra session rename`: rename a stopped session as `/rename` does inside one.
 
 A running staffer in claudestra's tmux is renamed by typing `/rename` into its window instead
 (runners/tmux.py): a running Claude Code re-appends its own title records, and the last one wins.

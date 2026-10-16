@@ -1,4 +1,4 @@
-"""`claudestra install-guard`: the deny rules and the hook that keep sessions out of claudestra's config.
+"""`claudestra install guard`: the deny rules and the hook that keep sessions out of claudestra's config.
 
 It only adds protection, so anyone may run it, a session or the plugin's `SessionStart` hook included, and it
 asks nothing of the caller: no subject is identified and no preamble is run, since a config with errors or

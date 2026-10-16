@@ -1,4 +1,4 @@
-"""Run on the other machine by `claudestra send` and `claudestra fetch`, as `python3 - <json>`.
+"""Run on the other machine by `claudestra machine send` and `claudestra machine fetch`, as `python3 - <json>`.
 
 The script is portable.py's source followed by this file's, so the far side runs the same code for
 every shared job; it needs neither claudestra nor the same ~/.claude checkout there. It reads and reports,
@@ -30,10 +30,13 @@ PROJECTS = ROOT / "projects"
 PROC = Path("/proc")
 
 
-def safe(rel: str) -> Path:
-    """A path inside ~/.claude and outside any memory folder, never following a symlink at its end."""
+def safe(rel: str, reading: bool = False) -> Path:
+    """A path inside ~/.claude, never following a symlink at its end; outside any memory folder unless it is
+    only read (`--copy-memory` reads and checksums memory, and nothing here ever trashes it)."""
     p = ROOT / rel
-    if not (p.parent.resolve() / p.name).is_relative_to(ROOT.resolve()) or "memory" in Path(rel).parts:
+    if not (p.parent.resolve() / p.name).is_relative_to(ROOT.resolve()) or (
+        not reading and "memory" in Path(rel).parts
+    ):
         raise SystemExit(json.dumps({"error": f"refusing {rel}"}))
     return p
 
@@ -62,13 +65,15 @@ def probe(args: dict) -> dict:
 
 
 def sha(args: dict) -> dict:
-    return {rel: (sha256(p) if (p := safe(rel)).is_file() and not p.is_symlink() else None) for rel in args["files"]}
+    return {
+        rel: (sha256(p) if (p := safe(rel, True)).is_file() and not p.is_symlink() else None) for rel in args["files"]
+    }
 
 
 def list_files(args: dict) -> dict:
     files, links = [], []
     for rel in args["stores"]:
-        p = safe(rel)
+        p = safe(rel, True)
         for f in [p] if p.is_symlink() or not p.is_dir() else sorted(p.rglob("*")):
             if f.is_symlink():
                 links.append(str(f.relative_to(ROOT)))
