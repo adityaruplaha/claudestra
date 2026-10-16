@@ -1,6 +1,6 @@
 [project]
 name = "claudestra"
-version = "0.2.1"
+version = "0.2.2"
 description = "Orchestrate long-lived Claude Code sessions as your machines' staff, with a chain of command."
 readme = "README.md"
 license = "Apache-2.0"

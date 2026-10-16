@@ -7,7 +7,7 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 // The claudestra this plugin pins; a test holds it to plugin.json's version.
-export const VERSION = '0.2.1'
+export const VERSION = '0.2.2'
 export const RELEASE = `git+https://github.com/adityaruplaha/claudestra@v${VERSION}`
 
 // A git source given without a version is pinned to this plugin's, so a machine that installs over SSH

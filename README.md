@@ -23,7 +23,7 @@ On Claude Code older than 2.1.275, add the marketplace first, with `/plugin mark
 When a session starts, the plugin checks that the claudestra version it pins is installed, puts claudestra's guard in place (deny rules and a hook that keep sessions out of its config), and installs shell completion. If that version is not installed, the plugin installs nothing by default: it shows the command that installs it, which a session offers to run for you. Turn on its `auto_install` option in `/config` to have it run the command itself. To install the CLI yourself, with or without the plugin:
 
 ```
-uv tool install git+https://github.com/adityaruplaha/claudestra@v0.2.1
+uv tool install git+https://github.com/adityaruplaha/claudestra@v0.2.2
 ```
 
 Then, in a terminal:
