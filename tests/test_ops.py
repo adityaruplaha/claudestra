@@ -330,3 +330,44 @@ def test_transfer_refuses_another_machine_or_one_that_accepts_no_connections(hom
     with pytest.raises(Refused, match="full session ID"):
         transfer.fetch(fs, HOST, closed, t, HUMAN, "", lt, None, None, {}, True)
     assert tr.exists()
+
+
+def test_move_refuses_what_it_cannot_do(home: Home):
+    src, dst = home.folder("old"), home.folder("new")
+    home.transcript(A, src)
+    fs, t, m = home.setup()
+    s = m.sessions[A]
+    with pytest.raises(Refused, match="does not map to"):
+        move_ops.plan(fs, HOST, t, s, dst, src=dst)
+    with pytest.raises(Refused, match="does not exist"):
+        move_ops.plan(fs, HOST, t, s, home.home / "missing", None)
+    with pytest.raises(Refused, match="already filed under"):
+        move_ops.plan(fs, HOST, t, s, src / "x" / "..", None)  # the same folder, written another way
+    with pytest.raises(Refused, match="slug is"):
+        move_ops.plan(fs, HOST, t, s, home.folder("d/" + "x" * 210), None)
+    home.transcript(A, dst)  # a copy already where it would go: now under two slugs
+    fs, t, m = home.setup()
+    with pytest.raises(Refused, match="filed under 2 slugs"):
+        move_ops.plan(fs, HOST, t, m.sessions[A], home.folder("third"), None)
+
+
+def test_move_refuses_a_transcript_already_at_the_destination_and_clashing_folders(home: Home):
+    src, dst = home.folder("old"), home.folder("new")
+    tr = home.transcript(A, src)
+    (home.projects / slug(dst)).mkdir()
+    (tr.parent / A / "tool-results").mkdir(parents=True)
+    (tr.parent / A / "tool-results" / "r1.txt").write_text("here")
+    elsewhere = home.projects / slug(home.folder("cd"))  # a session that changed directory left results there
+    (elsewhere / A / "tool-results").mkdir(parents=True)
+    (elsewhere / A / "tool-results" / "r2.txt").write_text("there")
+    fs, t, m = home.setup()
+    plan = move_ops.plan(fs, HOST, t, m.sessions[A], dst, None)
+    target = home.projects / slug(dst) / A  # the first <id>/ folder found is moved there, the other merged into it
+    assert sum(b == target for _, b in plan.moves) == 1 and [b for _, b in plan.merges] == [target]
+    (elsewhere / A / "tool-results" / "r1.txt").write_text("clash")
+    with pytest.raises(Refused, match="both hold tool-results/r1.txt"):
+        move_ops.plan(fs, HOST, t, m.sessions[A], dst, None)
+    (home.projects / slug(dst) / f"{A}.jsonl").write_text("")
+    fs, t, m = home.setup()
+    with pytest.raises(Refused):
+        move_ops.plan(fs, HOST, t, m.sessions[A], dst, None)
