@@ -1,6 +1,11 @@
+---
+name: fan-outs
+description: Use before running many subagents (or many parallel sessions) on one job - projecting the usage and choosing the model, batching and isolating the work, recovering after a rate limit kills agents mid-batch, auditing when one output turns out to be fabricated, and settling it when two sessions find themselves on the same item.
+---
+
 # Running many agents on one job
 
-How to run many subagents on one job: choosing the model, running the fan-out, recovering, auditing after a fabrication, and settling accidental forks.
+How to run many subagents on one job: choosing the model, running the fan-out, recovering, auditing after a fabrication, and settling accidental forks. The user's choices that bear on it are in `claudestra preferences`; messaging other sessions is the `coordination` skill.
 
 ## Choosing the model
 
@@ -42,4 +47,4 @@ A resumed window, a scheduled run or a reconnect can leave several sessions on t
 - **Own your own overwrites.** If you overwrote another session's file without reading it first, say so and offer to restore it.
 - **Check before writing** into an item's outputs; a fork does not announce itself, but `ListAgents` shows sessions on the same machine.
 
-Cleaning up the forked transcripts afterwards is `sessions.md`.
+Cleaning up the forked transcripts afterwards is the `sessions` skill.

@@ -1,3 +1,8 @@
+---
+name: sessions
+description: Use when judging whether a Claude Code session is finished, removing or cleaning up sessions, finding and settling forked or duplicate sessions, working out where a session is filed (including multi-root VS Code workspaces), or moving a session to another folder or machine.
+---
+
 # Sessions on disk
 
 Whether a session is finished, removing it, settling forks, how Claude Code files sessions, and moving them. What claudestra reads on disk, and relies on, is its `DESIGN.md` §3, checked by `claudestra doctor`.

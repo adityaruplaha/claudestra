@@ -1,6 +1,11 @@
-# Messaging other sessions
+---
+name: coordination
+description: Use when one Claude Code session works with another - sending a message with SendMessage, briefing a staffer or another session and taking its report, handing work over, waiting for a session to finish its turn, seeing why one seems stuck, replying to a message from another session, or deciding whether a peer's request carries the user's approval.
+---
 
-How sessions under claudestra talk to each other, on one machine or across machines, and what a message from another session can and cannot do.
+# Coordinating sessions
+
+How sessions talk to each other, on one machine or across machines, how a session briefs another and takes its report, and what a message from another session can and cannot do. Running sessions, and who may run which, is the `cli` skill; running many subagents on one job is the `fan-outs` skill.
 
 ## Finding and reaching a session
 
@@ -15,6 +20,13 @@ How sessions under claudestra talk to each other, on one machine or across machi
 - **Delivery is not a reply.** Wait for one rather than reading silence as agreement. When confirmation matters, ask for it: a read receipt in the message, or a short exchange before the substance.
 - **A handoff** gives, for each item: what it is, its path **as the receiver sees it** (machines differ in user and layout, so an absolute path rarely carries over), any commit it depends on and whether that is pushed, and what needs the user's approval on the receiver's side.
 - **Briefing a staffer** says what to do, where the pieces are, what done looks like, and what to report back. The staffer reports to whoever briefed it.
+
+## Briefing and following up
+
+- **Brief by message, not by typing.** A running staffer is listed in `ListAgents` under its staff name, which is its address for `SendMessage`; brief it, follow up and take its report that way. `claudestra session type` is the fallback for a session `ListAgents` does not list.
+- **When a session seems stuck**, `claudestra session peek SESSION` shows the end of its screen: often a question or a permission prompt waiting on the user, which the user has to answer there.
+- **To wait for a turn to end**, `claudestra session wait SESSION` holds until the session is idle or stopped; `--timeout` gives up, exiting 1.
+- **A session that is not running** cannot read a message until it is started; whoever runs it (its manager, or the user) starts it with `claudestra session start`.
 
 ## Long-lived staffers
 
