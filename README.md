@@ -121,4 +121,8 @@ uv run ruff format
 claude plugin test plugin
 ```
 
-Install a checkout with `uv tool install --editable .`; an editable install is never reminded of updates. Tests never touch real sessions: they use fixture homes, a fake `/proc`, their own tmux server and a stand-in for `claude`.
+Install a checkout with `uv tool install --editable .`; an editable install is never reminded of updates. Tests never touch real sessions: they use fixture homes, a fake `/proc`, their own tmux server and a stand-in for `claude`. CI runs all five on every push and pull request.
+
+## Releasing
+
+There is no changelog; the commit history is the record. To release, set the version in `pyproject.toml`, `plugin/.claude-plugin/plugin.json` and `VERSION` in `plugin/hooks/register.ts`, commit, and push a tag `v<version>`. The release workflow checks that all three name the tag's version, runs CI, and creates a GitHub release with generated notes.
