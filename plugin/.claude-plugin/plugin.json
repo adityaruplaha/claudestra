@@ -1,7 +1,7 @@
 {
   "name": "claudestra",
-  "version": "0.2.0",
-  "description": "Run long-lived Claude Code sessions as a staff: installs the claudestra CLI and keeps its guard in place.",
+  "version": "0.2.1",
+  "description": "Orchestrate long-lived Claude Code sessions as a staff, with a chain of command: installs the claudestra CLI, keeps its guard in place, and ships its skills.",
   "author": {
     "name": "Adityarup Laha"
   },
@@ -9,7 +9,7 @@
     "source": {
       "type": "string",
       "title": "Install source",
-      "description": "Where uv installs claudestra from; empty for this plugin's own release on GitHub. A local checkout's path is for developing claudestra.",
+      "description": "Where uv installs claudestra from; empty for this plugin's own release on GitHub. A git URL without a version, such as git+ssh://git@github.com/adityaruplaha/claudestra.git, is pinned to this plugin's version. A local checkout's path is for developing claudestra.",
       "default": ""
     }
   }

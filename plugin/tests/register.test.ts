@@ -1,7 +1,7 @@
 // The plugin's install step against stand-ins for uv and claudestra: it installs only a claudestra
 // other than the one it pins, puts the guard back every time, and says so when it cannot.
 import { expect, test } from 'claude-code/testing'
-import { ensure, type Io, RELEASE, VERSION } from '../hooks/register'
+import { ensure, type Io, pinned, RELEASE, VERSION } from '../hooks/register'
 
 function standIns(answers: Record<string, { exitCode: number; stdout?: string }>) {
   const ran: string[] = []
@@ -73,4 +73,10 @@ test('a failed install is said, and nothing more is run', async () => {
   expect(await ensure(s.io, '/src/claudestra')).toBeUndefined()
   expect(s.ran.at(-1)).toBe('uv tool install --force --quiet /src/claudestra')
   expect(s.toasts.join()).toContain('could not be installed from /src/claudestra')
+})
+
+test('a git source without a version is pinned to the plugin\'s, and any other source is left as given', async () => {
+  expect(pinned('git+ssh://git@github.com/o/claudestra.git')).toBe(`git+ssh://git@github.com/o/claudestra.git@v${VERSION}`)
+  expect(pinned('git+ssh://git@github.com/o/claudestra.git@v0.1.0')).toBe('git+ssh://git@github.com/o/claudestra.git@v0.1.0')
+  expect(pinned('/home/u/src/claudestra')).toBe('/home/u/src/claudestra')
 })

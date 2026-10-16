@@ -25,7 +25,7 @@ from .ui import fail, out
 completion_init()
 
 app = typer.Typer(
-    help="claudestra: run long-lived Claude Code sessions as a staff, with a chain of command (DESIGN.md). Bare `claudestra` at a terminal opens a menu.",
+    help="claudestra: orchestrate long-lived Claude Code sessions as a staff, with a chain of command (DESIGN.md). Bare `claudestra` at a terminal opens a menu.",
     rich_markup_mode="rich",
     context_settings={"help_option_names": ["-h", "--help"]},
     pretty_exceptions_show_locals=False,

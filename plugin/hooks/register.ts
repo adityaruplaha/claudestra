@@ -6,8 +6,13 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 // The claudestra this plugin installs; a test holds it to plugin.json's version.
-export const VERSION = '0.2.0'
+export const VERSION = '0.2.1'
 export const RELEASE = `git+https://github.com/adityaruplaha/claudestra@v${VERSION}`
+
+// A git source given without a version is pinned to this plugin's, so a machine that installs over SSH
+// (`git+ssh://…/claudestra.git`) sets it once and keeps step with every update.
+export const pinned = (source: string): string =>
+  source.startsWith('git+') && !(source.split('/').pop() ?? '').includes('@') ? `${source}@v${VERSION}` : source
 
 type Ran = { exitCode: number; stdout: string; stderr: string }
 
@@ -60,7 +65,7 @@ export async function ensure(io: Io, source: string): Promise<string | undefined
 }
 
 export const register: Register = (on, options) => {
-  const source = typeof options.source === 'string' && options.source !== '' ? options.source : RELEASE
+  const source = typeof options.source === 'string' && options.source !== '' ? pinned(options.source) : RELEASE
   on('session.start', async ($, e, next) => {
     const started = await next(e)
     $.clock.after(0, () => void ensure(io($), source)) // an install can take a while; the session does not wait

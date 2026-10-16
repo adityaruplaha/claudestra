@@ -1,6 +1,6 @@
-# claudestra
+# claudestra: orchestrating Claude Code sessions
 
-claudestra runs long-lived Claude Code sessions as a machine's **staff**, on one machine or several, with a chain of command. It keeps track of every session, starts and stops sessions in a tmux session of its own with Remote Control on, lets sessions manage other sessions within limits you set, moves sessions between folders and between machines, finds forks, orphans and stale state, and removes sessions to a trash rather than deleting them.
+claudestra, from Claude and orchestra, runs long-lived Claude Code sessions as a machine's **staff**, on one machine or several, with a chain of command. It keeps track of every session, starts and stops sessions in a tmux session of its own with Remote Control on, lets sessions manage other sessions within limits you set, moves sessions between folders and between machines, finds forks, orphans and stale state, and removes sessions to a trash rather than deleting them.
 
 The command is `claudestra`, also installed as `clost`. How it is built, and why, is in [DESIGN.md](DESIGN.md).
 
@@ -22,7 +22,7 @@ claudestra ships as a Claude Code plugin. This repository is its own marketplace
 When a session starts, the plugin installs the claudestra version it pins with `uv tool install`, puts claudestra's guard in place (deny rules and a hook that keep sessions out of its config), and installs shell completion. Without the plugin, install the CLI yourself:
 
 ```
-uv tool install git+https://github.com/adityaruplaha/claudestra@v0.2.0
+uv tool install git+https://github.com/adityaruplaha/claudestra@v0.2.1
 ```
 
 Then, in a terminal:
@@ -49,33 +49,33 @@ Every argument that names a session, staffer, trash entry, machine, folder or ch
 
 **Reading**
 
-| Command | |
-| :--- | :--- |
-| `clost ls` | Staffers and running sessions; `--all` for every session. |
-| `clost show SESSION` | One session in full. |
-| `clost summary SESSION` | Whether a session is finished: the prompts you typed, what other sessions relayed, its last reply. |
-| `clost whoami` | Who claudestra takes you to be, your scope, and who manages you. |
-| `clost permissions` | Who may take each action. |
-| `clost doctor` | Checks every fact about Claude Code's files that claudestra relies on, and its own setup. |
-| `clost audit` | What needs attention: forks, subagent copies, links, orphans, stale state. `--fix` fixes what is safe to. |
-| `clost check` | `trust.yaml` and the staff files against this machine. |
-| `clost log [SESSION]` | What claudestra has done here: who did what to which session, and when. |
+| Command                   |                                                                                                             |
+| :------------------------ | :---------------------------------------------------------------------------------------------------------- |
+| `clost ls`              | Staffers and running sessions; `--all` for every session.                                                 |
+| `clost show SESSION`    | One session in full.                                                                                        |
+| `clost summary SESSION` | Whether a session is finished: the prompts you typed, what other sessions relayed, its last reply.          |
+| `clost whoami`          | Who claudestra takes you to be, your scope, and who manages you.                                            |
+| `clost permissions`     | Who may take each action.                                                                                   |
+| `clost doctor`          | Checks every fact about Claude Code's files that claudestra relies on, and its own setup.                   |
+| `clost audit`           | What needs attention: forks, subagent copies, links, orphans, stale state. `--fix` fixes what is safe to. |
+| `clost check`           | `trust.yaml` and the staff files against this machine.                                                    |
+| `clost log [SESSION]`   | What claudestra has done here: who did what to which session, and when.                                     |
 
 Every reading command takes `--json`.
 
 **Running and organising sessions**: `clost session …`
 
-| Command | |
-| :--- | :--- |
-| `start`, `stop`, `restart` | Run sessions in claudestra's tmux session. |
-| `type SESSION TEXT` | Type a line into a running session and press Enter. |
-| `peek SESSION` | The end of a running session's screen, without attaching. |
-| `wait SESSIONS` | Wait until sessions are idle or stopped. |
-| `attach [SESSION]` | Open claudestra's tmux at one session's window, or the whole of it (you only). Ctrl-b d detaches. |
-| `compact SESSION` | Compact a stopped session. |
-| `spawn FOLDER` | Begin a new session in a folder, with `--prompt`, `--name`, and `--staff` to hire it. A session's spawn is always hired. |
-| `rename SESSION NAME` | Rename a session as `/rename` does. |
-| `move SESSION FOLDER` | Refile a stopped session under another folder, as if it had always run there. |
+| Command                          |                                                                                                                                |
+| :------------------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+| `start`, `stop`, `restart` | Run sessions in claudestra's tmux session.                                                                                     |
+| `type SESSION TEXT`            | Type a line into a running session and press Enter.                                                                            |
+| `peek SESSION`                 | The end of a running session's screen, without attaching.                                                                      |
+| `wait SESSIONS`                | Wait until sessions are idle or stopped.                                                                                       |
+| `attach [SESSION]`             | Open claudestra's tmux at one session's window, or the whole of it (you only). Ctrl-b d detaches.                              |
+| `compact SESSION`              | Compact a stopped session.                                                                                                     |
+| `spawn FOLDER`                 | Begin a new session in a folder, with `--prompt`, `--name`, and `--staff` to hire it. A session's spawn is always hired. |
+| `rename SESSION NAME`          | Rename a session as `/rename` does.                                                                                          |
+| `move SESSION FOLDER`          | Refile a stopped session under another folder, as if it had always run there.                                                  |
 
 `move`, `machine send` and `machine fetch` take `--copy-memory` to copy the project's auto-memory too, adding only what the destination lacks.
 
@@ -93,11 +93,11 @@ Every reading command takes `--json`.
 
 **Preferences**: `clost preferences` shows them; `clost preferences KEY [VALUE]` sets one (you only). Sessions follow them:
 
-| Preference | |
-| :--- | :--- |
-| `finished-transcripts` | Once a session's work has gone out: `keep` its conversation, treat it as `disposable`, or `ask`. |
-| `fan-out-model` | When a session runs many subagents: the `same` model, a `cheaper` one for a heavy fan-out, or `ask`. |
-| `update-reminders` | `yes` (the default) or `no`: a reminder at your terminal when a newer release is out. |
+| Preference               |                                                                                                            |
+| :----------------------- | :--------------------------------------------------------------------------------------------------------- |
+| `finished-transcripts` | Once a session's work has gone out: `keep` its conversation, treat it as `disposable`, or `ask`.     |
+| `fan-out-model`        | When a session runs many subagents: the `same` model, a `cheaper` one for a heavy fan-out, or `ask`. |
+| `update-reminders`     | `yes` (the default) or `no`: a reminder at your terminal when a newer release is out.                  |
 
 `clost help` is `-h`, and `clost version` is `-v`.
 
