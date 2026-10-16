@@ -14,6 +14,7 @@ from rich.text import Text
 
 from ..actions.base import Transaction
 from ..ops import trash as trash_ops
+from ..portable import given_folder
 from . import select
 from .base import FS_CHECKS, Ctx, refusing, session_app, trash_app
 from .ui import (
@@ -63,7 +64,7 @@ def move(
     c.act(FS_CHECKS)
     s = STOPPED.get(session)
     dest = MOVE_TO.get(folder)
-    frm = src.expanduser().absolute() if src else None
+    frm = given_folder(src) if src else None
     refusing(lambda: s.move(dest, frm, exact, copy_memory).perform(go_ahead(yes, dry)))
     if not dry:
         out.print(Text("moved", style="green"))

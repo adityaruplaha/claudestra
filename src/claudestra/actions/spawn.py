@@ -22,6 +22,7 @@ from ..caller import Refused
 from ..ops import staff as staff_ops
 from ..ops.common import log
 from ..ops.rename import check_name
+from ..portable import given_folder
 from ..runners import Launch
 from ..session import Session
 from ..trust import tilde
@@ -45,7 +46,7 @@ class Spawn(SessionAction):
         socket: str | None = None,
     ):
         super().__init__(Session(str(uuid.uuid4())))
-        self.folder = Path(folder).expanduser().absolute()
+        self.folder = given_folder(folder)
         self.claude, self.socket = claude, socket
         self.prompt = (prompt or "").strip() or None
         self.name = check_name(name) if name else None

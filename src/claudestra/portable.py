@@ -31,6 +31,12 @@ def slug(folder) -> str:
     return re.sub(r"[^A-Za-z0-9]", "-", str(folder))
 
 
+def given_folder(p) -> Path:
+    """A folder as a person or a session gave it: ~ expanded, made absolute and normalised, so that a `..` in
+    it cannot leave it looking inside a folder it is not in (a permission is a test of `is_relative_to`)."""
+    return Path(os.path.normpath(Path(p).expanduser().absolute()))
+
+
 LONG_SLUG = 200  # past this, Claude Code truncates a slug and appends a hash of the path (DESIGN.md §3)
 
 

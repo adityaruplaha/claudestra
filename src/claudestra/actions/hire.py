@@ -15,6 +15,7 @@ from ..caller import Refused, transcript_problem
 from ..ops import staff as staff_ops
 from ..ops.common import log
 from ..ops.rename import check_name
+from ..portable import given_folder
 from ..trust import tilde
 from .base import SessionAction
 from .permissions import D_UNMANAGED, MANAGER, USER, ToFolder
@@ -44,7 +45,7 @@ class Hire(SessionAction):
         here = self.folder or s.folder
         if here is None:
             raise Refused(f"the folder {s.id} is filed under is not known; give it with --folder")
-        here = Path(here).expanduser().absolute()
+        here = given_folder(here)
         if why := transcript_problem(c.fs, host, s.id, here):
             raise Refused(f"it cannot work in {here}: {why}")
         folders[host] = tilde(here, home)
@@ -62,7 +63,7 @@ class Hire(SessionAction):
         here = self.plan[3] if self.plan else (self.folder or self.session.folder)
         if here is None:
             raise Refused(f"the folder {self.session.id} would work in is not known; give it with --folder")
-        return Path(here).expanduser().absolute()
+        return given_folder(here)
 
     def describe(self) -> list[str]:
         name, folders, description, _ = self.plan

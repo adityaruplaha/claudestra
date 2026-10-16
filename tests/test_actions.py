@@ -662,3 +662,28 @@ def test_move_copies_the_projects_memory_only_when_asked_and_never_overwrites(ho
     (mem_x / "MEMORY.md").write_text("index\n")  # the same file there is no conflict
     Session(A).move(x, copy_memory=True).perform()
     assert (mem_x / "a.md").read_text() == "a\n" and (mem_w / "a.md").exists()  # copied, not moved
+
+
+def test_a_dotdot_does_not_carry_a_managers_spawn_or_hire_out_of_its_folder(home: Home):
+    """A folder given with `..` is normalised before permission is worked out: `~/w/../other` is not in ~/w."""
+    from claudestra.actions.hire import Hire
+    from claudestra.actions.spawn import Spawn
+
+    home.transcript(C, home.folder("w"))
+    home.staff_file(C, "mgr", {HERE: "~/w"})
+    home.folder("w/sub")
+    other = home.folder("other")
+    aged(home.transcript(A, other))
+    home.acting(Caller("folder", C, "mgr", 1, folder=home.home / "w"), {C: "folder"})
+    out = Spawn(str(home.home / "w" / ".." / "other"), "/bin/true", "brief", "x", True, "d")
+    assert out.folder == other
+    out.check()
+    with pytest.raises(Refused, match="its relation to it is none"):
+        out.authorize()
+    inside = Spawn(str(home.home / "w" / "sub" / ".." / "sub"), "/bin/true", "brief", "y", True, "d")
+    inside.check()
+    inside.authorize()
+    assert inside.folder == home.home / "w" / "sub"
+    with pytest.raises(Refused, match="its relation to it is none"):
+        Hire(Session(A), "one", home.home / "w" / ".." / "other", "Works on other.").perform()
+    assert not (home.config / "staff.d" / f"{A}.yaml").exists()

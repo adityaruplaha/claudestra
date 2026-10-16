@@ -15,6 +15,7 @@ from typing import Protocol
 
 from ..caller import Caller, Refused, transcript_problem
 from ..context import Context
+from ..portable import given_folder
 
 # The subject's relation to a session.
 USER = "user"  # the subject is the user, and nothing in the chain is Claude
@@ -65,6 +66,7 @@ def relation(subject: Caller, session) -> str:
 def relation_to_folder(subject: Caller, folder: Path, sid: str) -> str:
     """The subject's relation to a folder session `sid` would work in, for hiring it there: the relation
     it would have to the specialist hired."""
+    folder = given_folder(folder)  # however it was reached, `..` never counts as inside
     c = Context.current()
     if subject.kind == "human":
         return USER if not c.restricted else NONE

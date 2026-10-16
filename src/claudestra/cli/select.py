@@ -22,6 +22,7 @@ import typer
 from ..caller import Refused
 from ..claude_fs import UUID
 from ..ops import trash as trash_ops
+from ..portable import given_folder
 from . import ui
 from .ui import fail, label, state, where
 
@@ -289,7 +290,7 @@ class Folder(Selector):
             if answer is None:
                 raise typer.Exit(130)
             token = answer
-        return Path(token).expanduser().absolute()
+        return given_folder(token)
 
     @property
     def arg(self) -> Any:

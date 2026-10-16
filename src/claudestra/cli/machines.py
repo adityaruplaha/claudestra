@@ -14,6 +14,7 @@ from rich.text import Text
 from ..caller import Refused
 from ..ops import completion as completion_ops
 from ..ops import guard as guard_ops
+from ..portable import given_folder
 from . import select, ui
 from .base import FS_CHECKS, Ctx, install_app, machine_app, refusing
 from .ui import (
@@ -120,7 +121,7 @@ def fetch(
     c.act(FS_CHECKS)
     host = OTHER.get(host)
     session = FETCHABLE.where(on=host, message=f"Which staffer on {host}?").get(session.strip() if session else None)
-    action = c.fetch(session, host, src, dest.expanduser().absolute() if dest else None, copy_memory)
+    action = c.fetch(session, host, src, given_folder(dest) if dest else None, copy_memory)
     if refusing(lambda: action.perform(go_ahead(yes, dry))) is not None:
         out.print(Text("fetched; the copy there is in its trash", style="green"))
 
