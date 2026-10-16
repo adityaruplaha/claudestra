@@ -159,7 +159,9 @@ def test_the_hook_fails_open_on_input_it_cannot_read(hook):
     assert hook(None, raw="not json") == 0
 
 
-def test_uninstall_takes_out_what_claudestra_added_and_keeps_the_rest(home: Home, as_him, monkeypatch):
+def test_uninstall_takes_out_what_claudestra_added_and_keeps_the_rest(
+    home: Home, as_him, monkeypatch, no_real_login_unit
+):
     monkeypatch.setenv("SHELL", "/bin/zsh")
     monkeypatch.delenv("ZDOTDIR", raising=False)
     monkeypatch.setenv("XDG_DATA_HOME", str(home.home / ".local" / "share"))
@@ -171,8 +173,15 @@ def test_uninstall_takes_out_what_claudestra_added_and_keeps_the_rest(home: Home
     assert run(app, [*home.cli_args(), "install", "guard", "-y"]).exit_code == 0
     assert run(app, [*home.cli_args(), "install", "completion", "zsh", "-y"]).exit_code == 0
     assert "claudestra" in rc.read_text()
+    from claudestra.ops import unit
+
+    stand_in = unit.unit_path()  # the test's own, never the user's (conftest.no_real_login_unit)
+    assert not stand_in.is_relative_to(Path.home() / ".config")
+    stand_in.parent.mkdir(parents=True)
+    stand_in.write_text("[Unit]\n")
     r = run(app, [*home.cli_args(), "uninstall", "-y"])
     assert r.exit_code == 0, r.output
+    assert not stand_in.exists() and ["systemctl", "--user", "disable", unit.UNIT] in no_real_login_unit.ran
     data = json.loads(settings(home).read_text())
     assert data["model"] == "opus" and data["permissions"]["deny"] == ["Bash(rm *)"]
     assert data["hooks"]["PreToolUse"] == [] and data["remoteControlAtStartup"] is True

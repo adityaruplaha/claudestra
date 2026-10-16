@@ -19,7 +19,7 @@ from claudestra.claude_fs import ClaudeFS
 from claudestra.cli import ui
 from claudestra.context import Context
 from claudestra.model import Machine, Model, build
-from claudestra.ops import common, transfer, updates
+from claudestra.ops import common, transfer, unit, updates
 from claudestra.portable import slug
 from claudestra.trust import MachineConf, Trust, load
 
@@ -191,3 +191,26 @@ def no_update_checks(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setattr(updates, "latest", lambda timeout=5: None)
     monkeypatch.setattr(updates, "refresh_later", lambda home: None)
+
+
+class _NoSystemctl:
+    """subprocess for ops/unit.py in tests: records what would have run, and runs nothing."""
+
+    def __init__(self):
+        self.ran: list[list[str]] = []
+
+    def run(self, argv, **kw):
+        self.ran.append(list(argv))
+        import subprocess
+
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+
+@pytest.fixture(autouse=True)
+def no_real_login_unit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """No test reads, writes or removes the user's real login unit, or runs systemctl: on 2026-10-17 the
+    uninstall test, with the unit found through Path.home(), deleted the real one on every run."""
+    monkeypatch.setattr(unit, "unit_path", lambda: tmp_path / "systemd" / "user" / unit.UNIT)
+    fake = _NoSystemctl()
+    monkeypatch.setattr(unit, "subprocess", fake)
+    return fake
