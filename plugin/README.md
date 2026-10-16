@@ -28,7 +28,7 @@ Each time a session starts, the plugin does the following in the background; the
 3. **Installs shell completion** for `claudestra` and `clost` in zsh, bash or fish: a script under `~/.local/share/claudestra/` with one marked line in `~/.zshrc` or `~/.bashrc` that loads it, or a file in fish's completions folder.
 4. **Reminds the user to run `claudestra setup`**, with a notice, until they have chosen their preferences.
 
-The plugin sends nothing anywhere. Its only network access is uv fetching the pinned release from GitHub, with `auto_install` on.
+claudestra reads Claude Code's own files on your machine, the session transcripts among them, to list, summarise, move and audit sessions; it reads them only there and only when one of its commands is run. The plugin sends nothing anywhere. Its only network access is uv fetching the pinned release from GitHub, with `auto_install` on.
 
 ## Undoing it
 

@@ -1,9 +1,12 @@
 {
   "name": "claudestra",
+  "displayName": "claudestra",
   "version": "0.2.2",
   "description": "Orchestrate long-lived Claude Code sessions as a staff, with a chain of command: checks for the claudestra CLI (or installs it, if allowed), keeps its guard in place, and ships its skills.",
   "author": {
-    "name": "Adityarup Laha"
+    "name": "Adityarup Laha",
+    "email": "me@adityaruplaha.me",
+    "url": "https://adityaruplaha.me"
   },
   "license": "Apache-2.0",
   "homepage": "https://github.com/adityaruplaha/claudestra",
