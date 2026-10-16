@@ -125,7 +125,7 @@ def main(
 ) -> None:
     c = Context(home, config)
     ctx.obj = Ctx()
-    if c.restricted:
+    if c.restricted and not _asks_for_help():
         # First, before any output, and on stderr so a command's --json stays clean.
         ui.err.print(Text(Context.RESTRICTED, style="bold yellow"))
         ui.err.print(Text(c.caller_line(), style="yellow"))
@@ -136,6 +136,14 @@ def main(
             out.print(ctx.get_help())
             raise typer.Exit(0)
         menu(ctx)
+
+
+def _asks_for_help() -> bool:
+    """Help is the same for everyone, so it goes without the restricted-mode banner."""
+    import sys
+
+    args = sys.argv[1:]
+    return any(a in ("-h", "--help") for a in args) or args[:1] == ["help"]
 
 
 def _remind(c: Context) -> None:

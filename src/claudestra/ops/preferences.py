@@ -66,6 +66,29 @@ def load(config: Path) -> dict[str, str | None]:
     }
 
 
+def problems(config: Path) -> list[str]:
+    """What is wrong in the file as written: what cannot be read, a value no choice allows, a key that is not
+    a preference. `claudestra check` reports them; setting a preference writes the file afresh."""
+    p = path(config)
+    if not p.is_file():
+        return []
+    try:
+        raw = yaml.safe_load(p.read_text())
+    except (OSError, yaml.YAMLError) as e:
+        return [f"{p.name} cannot be read ({e}); setting a preference writes it afresh"]
+    if raw is None:
+        return []
+    if not isinstance(raw, dict):
+        return [f"{p.name} is not a mapping; setting a preference writes it afresh"]
+    out = [f"{p.name}: {k!r} is not a preference" for k in raw if k not in PREFERENCES]
+    out += [
+        f"{p.name}: {k} is {v!r}, which is none of {', '.join(PREFERENCES[k].choices)}, so it reads as not chosen"
+        for k, v in raw.items()
+        if k in PREFERENCES and v not in PREFERENCES[k].choices
+    ]
+    return out
+
+
 def check(key: str, value: str) -> None:
     if key not in PREFERENCES:
         raise Refused(f"no preference {key!r}; there are {', '.join(PREFERENCES)}")
@@ -75,7 +98,12 @@ def check(key: str, value: str) -> None:
 
 def save(config: Path, key: str, value: str) -> None:
     check(key, value)
-    have = {k: v for k, v in load(config).items() if v is not None}
+    try:
+        have = {k: v for k, v in load(config).items() if v is not None}
+    except Refused:  # a file that cannot be read is kept aside, and written afresh
+        p = path(config)
+        p.replace(p.with_name(p.name + ".unreadable"))
+        have = {}
     have[key] = value
     header = "# The user's preferences for claudestra; written by `claudestra setup` and `claudestra preferences`.\n"
     atomic_write_text(path(config), header + yaml.safe_dump(have, sort_keys=False))

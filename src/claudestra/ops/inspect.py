@@ -50,7 +50,10 @@ def session_info(fs: ClaudeFS, trust: Trust, m: Model, s: SessionRecord, host: s
 
 def config_report(fs: ClaudeFS, trust: Trust, host: str) -> tuple[list[str], list[str]]:
     """(problems, warnings) in trust.yaml and staff.d/ against this machine."""
+    from . import preferences
+
     problems, warnings = list(trust.errors), list(trust.warnings)
+    warnings += preferences.problems(trust.config)
     for a in trust.staff:
         if a.folder is None:
             continue

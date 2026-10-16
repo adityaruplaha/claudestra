@@ -19,10 +19,46 @@ from ..model import SessionRecord
 from ..trust import tilde
 
 _tty = sys.stdout.isatty()
+
+
 # Colour drops itself off a terminal or under NO_COLOR. Off a terminal nothing wraps either, since
 # Claude sessions read this output. Markup is off: names such as "[my-stack] manager" would
 # otherwise be read as style tags.
-out = Console(highlight=False, markup=False, soft_wrap=not _tty, width=None if _tty else 10_000)
+class _Trimmed:
+    """Standard output with each line's trailing spaces dropped: off a terminal a table pads every row to its
+    widest, which a session reading the output only has to strip."""
+
+    def __init__(self):
+        self.pending = ""
+
+    @property
+    def stream(self):  # whatever standard output is now: a test captures it after this module is loaded
+        return sys.stdout
+
+    def write(self, text: str) -> int:
+        lines = (self.pending + text).split("\n")
+        self.pending = lines.pop()
+        for line in lines:
+            self.stream.write(line.rstrip() + "\n")
+        return len(text)
+
+    def flush(self) -> None:
+        if self.pending:
+            self.stream.write(self.pending.rstrip())
+            self.pending = ""
+        self.stream.flush()
+
+    def isatty(self) -> bool:
+        return False
+
+
+out = Console(
+    highlight=False,
+    markup=False,
+    soft_wrap=not _tty,
+    width=None if _tty else 10_000,
+    file=None if _tty else _Trimmed(),
+)
 err = Console(stderr=True, highlight=False, markup=False, soft_wrap=True)
 
 

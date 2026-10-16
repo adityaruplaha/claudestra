@@ -88,3 +88,18 @@ def test_only_the_user_may_enable_it(home: Home, monkeypatch: pytest.MonkeyPatch
 def test_off_in_ignores_the_users_own_settings_seen_from_home(home: Home):
     home.settings.write_text(json.dumps({"remoteControlAtStartup": False}))
     assert rc.off_in(home.setup()[0], home.home) == []
+
+
+def test_check_reports_a_badly_edited_preferences_file_and_setting_one_repairs_it(home: Home, as_him):
+    from claudestra.ops import preferences as prefs
+
+    f = home.config / "preferences.yaml"
+    f.write_text("fan-out-model: sonnet\nmood: happy\n")
+    r = run(app, [*home.cli_args(), "check"])
+    assert "'mood' is not a preference" in r.output and "reads as not chosen" in r.output
+    f.write_text("fan-out-model: [unclosed\n")
+    assert "cannot be read" in run(app, [*home.cli_args(), "check"]).output
+    assert run(app, [*home.cli_args(), "preferences", "fan-out-model", "cheaper", "-y"]).exit_code == 0
+    assert (
+        prefs.load(home.config)["fan-out-model"] == "cheaper" and (home.config / "preferences.yaml.unreadable").exists()
+    )
