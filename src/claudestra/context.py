@@ -150,9 +150,12 @@ class Context:
             where = "on " + ", ".join(sorted(sf.folders)) if sf.folders else "with no folder on any machine"
         return f"caller: {who}, " + (f"{scope} scope {where}" if scope else f"a specialist (no scope), {where}")
 
-    def act(self, needs: list[str]) -> Caller:
-        """The preamble of every action that changes something; returns the subject, or refuses."""
-        if why := machine_problem(self.machine.hostname, self.machine.machine_id, self.trust.machines):
+    def act(self, needs: list[str], machine_known: bool = True) -> Caller:
+        """The preamble of every action that changes something; returns the subject, or refuses. An action that
+        describes this machine in trust.yaml does not need it described already (`machine_known`)."""
+        if machine_known and (
+            why := machine_problem(self.machine.hostname, self.machine.machine_id, self.trust.machines)
+        ):
             raise Refused(f"this machine does not match trust.yaml: {why}")
         if self.trust.errors:
             raise Refused("the config has errors; see claudestra check")

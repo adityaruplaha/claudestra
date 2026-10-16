@@ -94,7 +94,7 @@ Every command is an **action**: a subject, a verb and an object. The subject is 
 
 **Performing an action** follows one fixed order, in `Action.perform`:
 
-1. The preamble: this machine matches `trust.yaml`, the config has no errors, `--home`, `--config` and `$CLAUDESTRA_CONFIG` are honoured only for the user, and the `doctor` checks the action depends on pass.
+1. The preamble: this machine matches `trust.yaml` (except for `trust machine`, which is how a machine gets there), the config has no errors, `--home`, `--config` and `$CLAUDESTRA_CONFIG` are honoured only for the user, and the `doctor` checks the action depends on pass.
 2. `check`, `authorize` and `describe`, then show the plan. `--dry-run` stops here; at a terminal the user is asked (`-y` skips the question), and a session is never asked.
 3. Inside the lock, read the disk again, `check` and `authorize` again, and refuse if the plan changed while the user was deciding.
 4. `run`, then read the disk again for whatever reads next.

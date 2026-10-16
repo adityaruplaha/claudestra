@@ -256,3 +256,15 @@ def test_every_reading_command_prints_json(home: Home, as_him):
     ):  # fmt: skip
         r = run(app, [*home.cli_args(), *args, "--json"])
         json.loads(r.stdout), args
+
+
+def test_a_fresh_machine_can_be_described(home: Home, monkeypatch: pytest.MonkeyPatch):
+    """The one action that puts this machine into trust.yaml cannot require it to be there already."""
+    monkeypatch.setattr(context_mod, "identify", lambda *a, **k: HUMAN)
+    monkeypatch.setattr(context_mod, "claude_chain", lambda *a, **k: [])  # the user at a terminal
+    assert not (home.config / "trust.yaml").exists()
+    r = run(app, [*home.cli_args(), "trust", "machine", "add", "-y"])
+    assert r.exit_code == 0, r.output
+    assert HERE.lower() in (home.config / "trust.yaml").read_text().lower()
+    r = run(app, [*home.cli_args(), "session", "rename", "x", "y", "-y"])  # others still need it described first
+    assert "does not match trust.yaml" not in r.output

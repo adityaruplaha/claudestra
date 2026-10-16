@@ -19,6 +19,7 @@ class TrustMachine(Action):
     who = Kinds(frozenset({"human"}))
     needs: list[str] = []
     reversible = True
+    machine_known = False  # it is how a machine gets into trust.yaml, or out of it when its ID has changed
 
     def __init__(
         self,

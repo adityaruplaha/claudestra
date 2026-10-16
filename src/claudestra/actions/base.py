@@ -29,6 +29,9 @@ class Action:
     reversible: ClassVar[bool] = False  # if so, it overrides undo()
     changes: ClassVar[bool] = True  # False: no preamble, no confirmation, no lock (ReadOnlyAction)
     locks: ClassVar[bool] = True  # False: all of perform but the lock (Attach, whose process becomes tmux)
+    machine_known: ClassVar[bool] = (
+        True  # False: the preamble does not require this machine in trust.yaml (TrustMachine)
+    )
 
     def __init_subclass__(cls, **kwargs):
         """An action that forgets who may take it, or says it can be undone without saying how, fails
@@ -81,7 +84,7 @@ class Action:
             self.authorize()
             return self.run()
         c = self.context
-        c.act(self.needs)
+        c.act(self.needs, self.machine_known)
         self.check()
         self.authorize()
         plan = self.describe()
