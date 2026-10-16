@@ -211,6 +211,8 @@ def no_real_login_unit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """No test reads, writes or removes the user's real login unit, or runs systemctl: on 2026-10-17 the
     uninstall test, with the unit found through Path.home(), deleted the real one on every run."""
     monkeypatch.setattr(unit, "unit_path", lambda: tmp_path / "systemd" / "user" / unit.UNIT)
+    # Nor does the unit depend on a claude being on this machine's PATH, which a CI runner lacks.
+    monkeypatch.setattr(unit, "claude_path", lambda: "/usr/bin/claude")
     fake = _NoSystemctl()
     monkeypatch.setattr(unit, "subprocess", fake)
     return fake
