@@ -48,7 +48,9 @@ export async function ensure(io: Io, source: string): Promise<string | undefined
   const have = await io.run([cli, '--version'])
   if (have?.exitCode !== 0 || have.stdout.trim() !== VERSION) {
     io.status(`claudestra: installing ${VERSION}`)
-    const got = await io.run(['uv', 'tool', 'install', '--force', '--quiet', source], 600_000)
+    // A local folder is a checkout someone is developing, so it is installed editable, as they would.
+    const local = source.startsWith('/') || source.startsWith('~')
+    const got = await io.run(['uv', 'tool', 'install', '--force', '--quiet', ...(local ? ['--editable'] : []), source], 600_000)
     io.status(undefined)
     if (got?.exitCode !== 0) {
       io.toast(`claudestra could not be installed from ${source}: ${said(got)}`)

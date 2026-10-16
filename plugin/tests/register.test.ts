@@ -71,7 +71,7 @@ test('without uv it says the guard is not in place', async () => {
 test('a failed install is said, and nothing more is run', async () => {
   const s = standIns({ 'uv tool dir --bin': { exitCode: 0, stdout: '/b\n' }, 'uv tool install': { exitCode: 1 } })
   expect(await ensure(s.io, '/src/claudestra')).toBeUndefined()
-  expect(s.ran.at(-1)).toBe('uv tool install --force --quiet /src/claudestra')
+  expect(s.ran.at(-1)).toBe('uv tool install --force --quiet --editable /src/claudestra')
   expect(s.toasts.join()).toContain('could not be installed from /src/claudestra')
 })
 
