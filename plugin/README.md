@@ -4,6 +4,12 @@ claudestra runs long-lived Claude Code sessions as a machine's staff, with a cha
 
 Linux only; it needs [uv](https://docs.astral.sh/uv/) and tmux.
 
+Install it in Claude Code with:
+
+```
+/plugin install claudestra --marketplace adityaruplaha/claudestra
+```
+
 ## What it does when a session starts
 
 Each time a session starts, the plugin does the following in the background; the session does not wait for it.

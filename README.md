@@ -15,9 +15,10 @@ The command is `claudestra`, also installed as `clost`. How it is built, and why
 claudestra ships as a Claude Code plugin. This repository is its own marketplace:
 
 ```
-/plugin marketplace add adityaruplaha/claudestra
-/plugin install claudestra@claudestra
+/plugin install claudestra --marketplace adityaruplaha/claudestra
 ```
+
+On Claude Code older than 2.1.275, add the marketplace first, with `/plugin marketplace add adityaruplaha/claudestra`, then `/plugin install claudestra@claudestra`.
 
 When a session starts, the plugin checks that the claudestra version it pins is installed, puts claudestra's guard in place (deny rules and a hook that keep sessions out of its config), and installs shell completion. If that version is not installed, the plugin installs nothing by default: it shows the command that installs it, which a session offers to run for you. Turn on its `auto_install` option in `/config` to have it run the command itself. To install the CLI yourself, with or without the plugin:
 
@@ -126,6 +127,10 @@ Install a checkout with `uv tool install --editable .`; an editable install is n
 ## Releasing
 
 There is no changelog; the commit history is the record. To release, set the version in `pyproject.toml`, `plugin/.claude-plugin/plugin.json` and `VERSION` in `plugin/hooks/register.ts`, commit, and push a tag `v<version>`. The release workflow checks that all three name the tag's version, runs CI, and creates a GitHub release with generated notes.
+
+## Privacy and security
+
+claudestra collects nothing and sends nothing anywhere; what it reaches the network for, and how to turn each off, is in [PRIVACY.md](PRIVACY.md). Report a vulnerability privately, as [SECURITY.md](SECURITY.md) says.
 
 ## Licence
 

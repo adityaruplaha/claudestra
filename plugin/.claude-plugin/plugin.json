@@ -6,6 +6,19 @@
     "name": "Adityarup Laha"
   },
   "license": "Apache-2.0",
+  "homepage": "https://github.com/adityaruplaha/claudestra",
+  "repository": "https://github.com/adityaruplaha/claudestra",
+  "documentationUrl": "https://github.com/adityaruplaha/claudestra",
+  "supportUrl": "https://github.com/adityaruplaha/claudestra/issues",
+  "privacyPolicyUrl": "https://github.com/adityaruplaha/claudestra/blob/main/PRIVACY.md",
+  "keywords": [
+    "sessions",
+    "orchestration",
+    "tmux",
+    "staff",
+    "coordination",
+    "subagents"
+  ],
   "userConfig": {
     "source": {
       "type": "string",

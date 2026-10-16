@@ -19,6 +19,12 @@ classifiers = [
 ]
 dependencies = ["libtmux>=0.62,<0.63", "pyyaml>=6,<7", "questionary>=2.1,<3", "rich>=14", "typer>=0.27,<0.28"]
 
+[project.urls]
+Homepage = "https://github.com/adityaruplaha/claudestra"
+Documentation = "https://github.com/adityaruplaha/claudestra#readme"
+Issues = "https://github.com/adityaruplaha/claudestra/issues"
+Privacy = "https://github.com/adityaruplaha/claudestra/blob/main/PRIVACY.md"
+
 [project.scripts]
 claudestra = "claudestra.cli:app"
 clost = "claudestra.cli:app"
