@@ -157,6 +157,17 @@ def no_real_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def no_real_xdg(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The XDG folders and ZDOTDIR are the fixture home's defaults, whatever the user's environment sets, so
+    shell completion and the far side's log never reach the user's own."""
+    home = tmp_path / "home"
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(home / ".config"))
+    monkeypatch.setenv("XDG_DATA_HOME", str(home / ".local" / "share"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(home / ".local" / "state"))
+    monkeypatch.delenv("ZDOTDIR", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def no_context_left():
     """Each test starts with no claudestra context, and leaves none behind."""
     Context.reset()
