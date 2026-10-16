@@ -22,7 +22,10 @@ claudestra = "claudestra.cli:app"
 clost = "claudestra.cli:app"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "pytest>=8",
+    "ruff>=0.15,<0.16",
+]
 
 [build-system]
 requires = ["uv_build>=0.13,<0.14"]
