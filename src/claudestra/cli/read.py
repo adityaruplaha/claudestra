@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from typing import Annotated
 
+import questionary
 import typer
 from rich.table import Table
 from rich.text import Text
@@ -20,6 +21,7 @@ from ..actions.permissions import Kinds, Relations, ToFolder
 from ..actions.permissions_view import Permissions
 from ..actions.whoami import Whoami
 from ..context import Context
+from ..ops import remote_control
 from ..ops.audit import REPORTS
 from ..proctree import describe as describe_chain
 from ..trust import tilde
@@ -31,7 +33,9 @@ from .ui import (
     SessionsArg,
     Yes,
     go_ahead,
+    interactive,
     label,
+    lines,
     out,
     pick,
     session_choices,
@@ -286,7 +290,7 @@ def doctor(
 ) -> None:
     """Check on this machine every fact about Claude Code's files that claudestra relies on (DESIGN.md §3)."""
     results = refusing(Doctor(names, deep).perform)
-    style = {checks.PASS: "green", checks.FAIL: "bold red", checks.NA: "dim"}
+    style = {checks.PASS: "green", checks.WARN: "yellow", checks.FAIL: "bold red", checks.NA: "dim"}
     t = Table(box=None, show_header=False, pad_edge=False)
     t.add_column(no_wrap=True)
     t.add_column(style="bold", no_wrap=True)
@@ -294,7 +298,19 @@ def doctor(
     for r in results:
         t.add_row(Text(r.status, style=style[r.status]), r.name, r.detail)
     out.print(t)
+    if any(r.name == "remote-control" and r.status == checks.FAIL for r in results) and _offer_remote_control(ctx.obj):
+        results = [r for r in results if r.name != "remote-control"] + refusing(Doctor(["remote-control"]).perform)
     raise typer.Exit(1 if any(r.status == checks.FAIL for r in results) else 0)
+
+
+def _offer_remote_control(c: Ctx) -> bool:
+    """At the user's terminal, offer to turn Remote Control on where the user's settings can; whether it did."""
+    if not interactive() or c.subject.kind != "human" or remote_control.effective(c.fs)[0] is True:
+        return False
+    if not questionary.confirm("Turn Remote Control on for every session (claudestra enable-remote-control)?").ask():
+        return False
+    lines(refusing(lambda: c.enable_remote_control().perform(go_ahead(True, False))) or [], "green")
+    return True
 
 
 @app.command()

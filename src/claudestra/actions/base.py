@@ -20,7 +20,7 @@ from ..ops.common import locked
 from .permissions import Anyone, Rule
 
 # The doctor checks an action that changes session files depends on.
-FS_CHECKS = ["pid-files", "proc-start", "slug-rule", "transcript-ids", "record-types"]
+FS_CHECKS = ["pid-files", "proc-start", "slug-rule", "transcript-ids"]
 
 
 class Action:

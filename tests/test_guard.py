@@ -87,8 +87,9 @@ def test_a_settings_file_it_cannot_read_is_left_alone(home: Home, as_him):
 
 
 def test_managed_prints_a_drop_in_and_doctor_counts_it(home: Home, as_him, tmp_path: Path):
+    before = settings(home).read_text()
     r = run(app, [*home.cli_args(), "install-guard", "--managed"])
-    assert r.exit_code == 0 and "sudo install" in r.output and not settings(home).exists()
+    assert r.exit_code == 0 and "sudo install" in r.output and settings(home).read_text() == before
     fs = home.setup()[0]
     (home.config / "guard.py").write_text(guard.GUARD_SOURCE)
     drop_in = tmp_path / "etc" / "managed-settings.d" / "claudestra.json"

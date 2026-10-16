@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..caller import Refused
 from ..ops import move as move_ops
-from .base import SessionAction
+from .base import FS_CHECKS, SessionAction
 from .permissions import D_MANAGER, USER, Relations
 
 
@@ -15,6 +15,7 @@ class Move(SessionAction):
     verb = "move"
     who = Relations(frozenset({USER, D_MANAGER}))
     reversible = True
+    needs = [*FS_CHECKS, "jobs"]  # it rewrites a background job's state as well
 
     def __init__(self, session, dest: Path, src: Path | None = None, exact: bool = False):
         super().__init__(session)

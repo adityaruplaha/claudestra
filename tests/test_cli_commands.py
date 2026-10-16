@@ -119,10 +119,14 @@ def test_preamble_refuses_a_config_with_errors_and_a_failing_doctor_check(home: 
     assert r.exit_code == 1 and "the config has errors" in r.output
     (home.config / "staff.d" / "not-a-session-id.yaml").unlink()
     tr = home.transcript(B, home.folder("w"))
-    with tr.open("a") as fh:  # a record type claudestra does not know, which a move might mishandle
+    with tr.open("a") as fh:  # a record type claudestra does not know only warns
         fh.write(json.dumps({"type": "something-new", "sessionId": B}) + "\n")
+    r = run(app, [*home.cli_args(), "rename", A, "new", "-y", "--dry-run"])
+    assert r.exit_code == 0
+    with tr.open("a") as fh:  # another session's ID in B's transcript, which identity rests on
+        fh.write(json.dumps({"type": "user", "sessionId": A}) + "\n")
     r = run(app, [*home.cli_args(), "rename", A, "new", "-y"])
-    assert r.exit_code == 1 and "doctor fails" in r.output
+    assert r.exit_code == 1 and "doctor fails" in r.output and "transcript-ids" in r.output
 
 
 # --- restricted mode, as the command line shows it ----------------------------------------------------

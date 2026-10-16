@@ -12,6 +12,8 @@ claudestra runs long-lived Claude Code sessions as a **staff**. A **staffer** is
 - `claudestra whoami`: who claudestra takes you to be (it reads the process chain, never an argument), your scope, and who manages you.
 - `claudestra permissions`: who may take each action. On a session, it depends on your relation to that session; otherwise, on what kind of caller you are.
 
+**Remote Control must be on for every session**, set at the user's level (`remoteControlAtStartup` in `~/.claude/settings.json`): staffers reach each other by message, and a session without it cannot be addressed. `claudestra doctor remote-control` checks it; if it fails, propose `claudestra enable-remote-control` to the user, which is theirs to run.
+
 Run from a session, claudestra is in **restricted mode** and says so on stderr: anything the user alone may do is refused.
 
 ## Reading
@@ -30,5 +32,5 @@ Every changing command prints its plan first. Use `--dry-run` to see the plan al
 
 - **A refusal is the answer.** It says who may do what was asked. Propose the command to whoever may run it (usually the user); do not reach the same end another way, such as editing Claude Code's files or running `claude` directly.
 - **Never touch claudestra's config folder** (`~/.config/claudestra/`: `trust.yaml`, `staff.d/`). claudestra's guard refuses any tool call that names it, and the way to change what is there is claudestra's commands: `hire`, `dismiss`, `describe`, and `trust`, which is the user's.
-- **The user's alone**: `trust`, `purge`, `send`, `fetch`, `attach`, and installing the login unit. Propose these; do not try them.
+- **The user's alone**: `trust`, `purge`, `send`, `fetch`, `attach`, `enable-remote-control`, and installing the login unit. Propose these; do not try them.
 - If `claudestra doctor` fails, say which check and what it reported rather than working around it.

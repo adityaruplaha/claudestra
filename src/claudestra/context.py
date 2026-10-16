@@ -250,3 +250,8 @@ class Context:
         from .actions.install_guard import InstallGuard
 
         return InstallGuard()
+
+    def enable_remote_control(self):
+        from .actions.enable_remote_control import EnableRemoteControl
+
+        return EnableRemoteControl()

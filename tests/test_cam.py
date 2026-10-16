@@ -151,7 +151,7 @@ def test_checks_on_fixture(home: Home):
     by = {r.name: r for r in checks.run(fs, ["pid-files", "transcript-ids", "record-types"], deep=True)}
     assert by["pid-files"].status == checks.NA
     assert by["transcript-ids"].status == checks.FAIL
-    assert by["record-types"].status == checks.FAIL and "brand-new" in by["record-types"].detail
+    assert by["record-types"].status == checks.WARN and "brand-new" in by["record-types"].detail
     assert checks.require(fs, []) == []  # a command that needs no check runs none
 
 

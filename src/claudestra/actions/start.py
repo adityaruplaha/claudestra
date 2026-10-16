@@ -23,7 +23,7 @@ def launch(session) -> Launch:
 class Start(SessionAction):
     verb = "start"
     who = Relations(frozenset({USER, MANAGER, D_MANAGER, D_UNMANAGED, LOGIN_AUTOSTART}))
-    needs = ["pid-files", "proc-start", "slug-rule"]
+    needs = ["pid-files", "proc-start", "slug-rule", "remote-control"]
 
     def __init__(self, session, claude: str, socket: str | None = None):
         super().__init__(session)

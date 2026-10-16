@@ -22,7 +22,7 @@ from .portable import ALIASES, read_json
 
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 # The Claude Code versions whose files this module has been checked against.
-KNOWN_VERSIONS = ("2.1.295", "2.1.296")
+KNOWN_VERSIONS = ("2.1.295", "2.1.296", "2.1.300", "2.1.301")
 # Record types seen in transcripts (DESIGN.md §3); anything else is reported by `doctor`.
 KNOWN_RECORD_TYPES = frozenset(
     {
@@ -49,6 +49,9 @@ KNOWN_RECORD_TYPES = frozenset(
         "artifact-comment-monitor",
         "continued-in",
         "fork-context-ref",
+        "api-request",
+        "api-request-blob",
+        "api-request-shape",
     }
 )
 # The records that carry a conversation's messages, and so `sessionId` and `isSidechain`.

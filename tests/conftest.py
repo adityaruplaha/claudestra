@@ -38,6 +38,8 @@ class Home:
         self.config = root / "config"
         (self.home / ".claude" / "projects").mkdir(parents=True)
         (self.config / "staff.d").mkdir(parents=True)
+        self.settings = self.home / ".claude" / "settings.json"
+        self.settings.write_text('{"remoteControlAtStartup": true}\n')  # claudestra requires it (DESIGN.md §7.1)
 
     @property
     def projects(self) -> Path:

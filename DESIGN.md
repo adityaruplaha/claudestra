@@ -35,7 +35,7 @@ Claude Code uses "agent" for its own subagents, so claudestra does not use the w
 
 ## 3. Facts it rests on
 
-Claude Code's documentation calls its on-disk format internal and liable to change on any release. claudestra therefore reads it defensively, checks `version` fields, and verifies each fact below with a named `claudestra doctor` check, which reports pass, fail or not observable. The facts were established against Claude Code 2.1.296 and its documentation (code.claude.com/docs: sessions, claude-directory, agent-view, env-vars, cli-reference).
+Claude Code's documentation calls its on-disk format internal and liable to change on any release. claudestra therefore reads it defensively, checks `version` fields, and verifies each fact below with a named `claudestra doctor` check, which reports pass, fail or not observable; an action refuses while a check it depends on fails. A check on a fact no action relies on only warns, and blocks nothing: `versions` and `record-types`, since Claude Code updates every few days, the facts an action depends on are checked on their own, and a move rewrites `cwd` in a record of any type; `env-session-id`, since the caller is identified from the process chain (§6.4); `bridge-ids`, whose mismatch makes a lookup by Remote Control ID miss rather than find another session; `subagents`, which only `audit` reads; and `claude-agents`. The facts were established against Claude Code 2.1.296 and its documentation, and checked again against 2.1.301 (code.claude.com/docs: sessions, claude-directory, agent-view, env-vars, cli-reference).
 
 **Identity**
 
@@ -58,6 +58,7 @@ Claude Code's documentation calls its on-disk format internal and liable to chan
 
 - Records link by `uuid` and `parentUuid`. There is no fork field, so a fork shows only as `uuid`s shared between two transcripts. Compaction stays in the same file: a `system` record with `subtype: compact_boundary`, then a `user` record with `isCompactSummary: true`.
 - Metadata records are appended again and again, and the last one wins: `custom-title` and `agent-name` (both written by `/rename`, with `<id>/custom-title.json`), `ai-title`, `bridge-session`, `last-prompt`, `cost-state`, `mode`, `permission-mode`, `continued-in` and others. None holds a path. The known record types are listed in `claude_fs.KNOWN_RECORD_TYPES`, and `doctor` reports any other.
+- From 2.1.300, `api-request`, `api-request-blob` and `api-request-shape` records log the requests sent to the API. They carry the session's ID and neither a `uuid` nor a `cwd`, so forks, moves and the counts in `summary` pass them by.
 - User records carry `origin.kind` (`human`, `peer`, `task-notification`), so the user's prompts can be told apart from messages relayed by other sessions.
 - Subagent transcripts' message records carry `isSidechain: true` and a session ID, normally the parent's. Which session a subagent belongs to is therefore a question for `claudestra audit subagents`.
 - Lines can hold invalid UTF-8, from cut tool output, so a rewrite works on bytes and changes only the `cwd` values.
@@ -138,7 +139,7 @@ sessions:
 
 **The chain of command.** The scopes exist so that no real work happens without its manager supervising it:
 
-- **The user**, at a terminal with no Claude process in the chain, may do anything, and is alone in what touches the machine or the config: `trust`, `purge`, `send`, `fetch`, `attach`, and installing the login unit. Installing the guard (§6.5) is open to anyone, since it only adds protection.
+- **The user**, at a terminal with no Claude process in the chain, may do anything, and is alone in what touches the machine or the config: `trust`, `purge`, `send`, `fetch`, `attach`, installing the login unit, and turning Remote Control on (§7.1). Installing the guard (§6.5) is open to anyone, since it only adds protection.
 - **A manager** (`folder` scope) runs its own specialists, the unscoped staffers whose folders lie inside its own: it starts, stops, compacts, renames and types into them, hires and dismisses specialists in its folder, and describes what they work on. Its folder is the one its staff file gives, counted only when its session is filed there and its process runs there, so editing a staff file cannot widen its reach.
 - **A device scope** organises the machine: it starts, stops, compacts and moves managers, and runs, hires, dismisses and describes any specialist whose folder no manager holds, since nobody else would. It may rename any staffer without device scope and type into any staffer but itself. It may trash a session that is not on the staff, and restore from the trash.
 - **The login unit** may only start this machine's autostart staffers (§7).
@@ -183,7 +184,7 @@ The relations, with D for a device scope:
 | Action | Who |
 | :--- | :--- |
 | restore | the user, or a device scope |
-| attach, fetch, install, purge | the user |
+| attach, fetch, install, purge, remote-control | the user |
 | trust grant, trust revoke, trust autostart, trust protect, trust machine | the user |
 
 Anything the user alone may do is refused in restricted mode (§5). A session off the staff can be started, stopped and renamed only by the user, since no relation but the user's reaches it.
@@ -230,6 +231,12 @@ claudestra's checks bind only sessions that go through claudestra, so the config
 - **tmux** (`runners/tmux.py`): one tmux session, `claudestra`, with one window per session it runs, named by the full session ID, so a rename never loses it. A runner is given only what it needs to run a session (`Launch`: its ID, its name and its folder): a staffer runs by its name on the staff, from the folder its staff file gives; any other session by its title, from the folder it is filed under. Remote Control is turned on with the same name. `remain-on-exit` is set before the session starts, so one that exits at once leaves its window for `attach`. No Claude Code variable reaches the window, from the caller or from a tmux server someone else started, and its `PATH` holds the folders of `claude` and `claudestra` first, so a session the login unit starts can call both. `start` waits for the run's session file and reports its pid; `stop` sends two Ctrl-Cs, then SIGTERM, and is refused mid-turn without `--force`.
 - **A run the user started**, outside claudestra's tmux, is seen and never stopped.
 - **The login unit**, `claudestra-autostart.service`, is a one-shot systemd user unit that runs `claudestra start --autostart` at login, starting the machine's autostart staffers. It records the exact paths of `claudestra` and `claude` found when it is installed, since the systemd user manager's `PATH` need not hold them; when either moves, the unit is reinstalled, and `claudestra doctor login-unit` reports a unit that differs from what claudestra would write.
+
+### 7.1 Remote Control is required
+
+claudestra requires Remote Control on for **every** session on a machine, at the user's level, not only for the sessions it starts. Staffers coordinate by messaging each other, a manager briefs and follows its staffers that way, and sessions on another machine are reached only through Remote Control; a session without it cannot be addressed, and cannot be answered. `start` turns it on with `--remote-control` for the sessions it runs, and requires the setting as well.
+
+Claude Code reads `remoteControlAtStartup`, tested against 2.1.300: `false` in a folder's own `.claude/settings.json` or `settings.local.json` turns it off there, whatever else says, and a folder's settings cannot turn it on; otherwise managed settings decide where they set it, then the user's `~/.claude/settings.json`, then an older copy in `~/.claude.json`. `claudestra doctor remote-control` fails while it is not on at that level, or while a staffer's folder on this machine turns it off, and `start` refuses until it passes. At the user's terminal, `doctor` offers to turn it on. **`claudestra enable-remote-control`** sets it in the user's settings, keeping everything else there; it is the user's alone, since it makes every session on the machine reachable through the user's account. It refuses where managed settings turn it off, and leaves a folder's own settings to the user.
 
 ## 8. Moving between machines
 

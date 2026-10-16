@@ -1,5 +1,5 @@
 """The commands that reach beyond this machine's sessions: send, fetch, install-systemd-user-unit,
-install-guard, completion."""
+install-guard, enable-remote-control, completion."""
 
 from __future__ import annotations
 
@@ -127,6 +127,14 @@ def install_guard(
         print("\n".join(guard_ops.managed(c.trust.config)))  # unwrapped, to be pasted
         return
     lines(refusing(lambda: c.install_guard().perform(go_ahead(yes, dry))) or [], "green")
+
+
+@app.command("enable-remote-control")
+def enable_remote_control(ctx: typer.Context, dry: Dry = False, yes: Yes = False) -> None:
+    """Turn Remote Control on for every session in Claude Code's user settings, which claudestra requires
+    (the user only; DESIGN.md §7.1)."""
+    c: Ctx = ctx.obj
+    lines(refusing(lambda: c.enable_remote_control().perform(go_ahead(yes, dry))) or [], "green")
 
 
 @app.command()

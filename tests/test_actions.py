@@ -147,6 +147,16 @@ def test_rename_undo_puts_the_old_name_back(home: Home):
 
 
 @needs_tmux
+def test_start_refuses_without_remote_control(home: Home, server):
+    socket, tmp, claude = server
+    home.transcript(A, home.folder("w"))
+    home.staff_file(A, "[x] one", {HERE: "~/w"})
+    home.settings.write_text("{}")
+    home.acting(HUMAN)
+    with pytest.raises(Refused, match="remote-control"):
+        Session(A).start(claude, socket).perform()
+
+
 def test_start_then_stop(home: Home, server):
     socket, tmp, claude = server
     home.transcript(A, home.folder("w"))
@@ -374,7 +384,7 @@ def test_every_changing_action_declares_who_may_take_it():
     """Each action states its own rule; nothing changing is left without one."""
     assert set(R) == {
         "attach", "compact", "describe", "dismiss", "fetch", "fix the audit", "guard", "hire", "install", "move", "purge", "rename",
-        "fix-name", "restore", "send", "start", "stop", "trash", "type",
+        "fix-name", "remote-control", "restore", "send", "start", "stop", "trash", "type",
         "trust grant", "trust revoke", "trust autostart", "trust protect", "trust machine",
     }  # fmt: skip
     # the audit's fixes are each authorized as their own verb; the guard only adds protection
@@ -627,3 +637,9 @@ def test_a_staffer_keeps_its_own_description_current(home: Home):
         Staffer(B).set_description("Works on sub.").perform()
     action.undo()
     assert Staffer(B).staff_file.description == "Something else."
+
+
+def test_move_requires_the_jobs_check_since_it_rewrites_job_state():
+    from claudestra.actions.move import Move
+
+    assert "jobs" in Move.needs and "transcript-ids" in Move.needs

@@ -5,7 +5,7 @@
 import type { EngineInterface, Register } from 'claude-code'
 
 // The claudestra this plugin installs; a test holds it to plugin.json's version.
-export const VERSION = '0.1.0'
+export const VERSION = '0.1.1'
 export const RELEASE = `git+https://github.com/adityaruplaha/claudestra@v${VERSION}`
 
 type Ran = { exitCode: number; stdout: string; stderr: string }

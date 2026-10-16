@@ -1,6 +1,6 @@
 """`claudestra doctor`: each fact in DESIGN.md §3 that claudestra relies on, checked on this machine.
 
-Every check returns pass, fail, or n/a (nothing on this machine to check it against). A new Claude
+Every check returns pass, warn, fail, or n/a (nothing on this machine to check it against). A new Claude
 Code version that changes a fact shows up here as a failure before an operation acts on it, and a
 mutating command runs the checks it depends on first (`require`).
 """
@@ -22,10 +22,11 @@ from .claude_fs import (
     claude_agents,
 )
 from .model import Machine
-from .ops import guard, unit
+from .ops import guard, remote_control, unit
 from .trust import Trust, load, machine_problem
 
-PASS, FAIL, NA = "pass", "fail", "n/a"
+# A warning is reported and blocks nothing: what it reports is worth a look, not a reason to refuse.
+PASS, WARN, FAIL, NA = "pass", "warn", "fail", "n/a"
 
 
 @dataclass
@@ -117,7 +118,8 @@ def check_transcript_ids(fs: ClaudeFS, deep: bool) -> Result:
 
 
 def check_record_types(fs: ClaudeFS, deep: bool) -> Result:
-    """Every record type is one claudestra knows; a new one may carry something a move must handle."""
+    """Every record type is one claudestra knows. A warning: a move rewrites `cwd` in a record of any type, so
+    a new type matters only if it holds a path under another name, which is worth a look after an update."""
     unknown: dict[str, int] = {}
     n = 0
     for _, t in fs.transcripts():
@@ -130,20 +132,21 @@ def check_record_types(fs: ClaudeFS, deep: bool) -> Result:
     where = "all records" if deep else "the tail of each transcript (--deep for all records)"
     return Result(
         "record-types",
-        FAIL if unknown else PASS,
+        WARN if unknown else PASS,
         f"unknown types {unknown}" if unknown else f"only known types, in {where}",
     )
 
 
 def check_versions(fs: ClaudeFS, deep: bool) -> Result:
-    """The running Claude Code versions are ones these checks were written against."""
+    """The running Claude Code versions are ones these checks were written against. A warning, since Claude
+    Code updates every few days; the checks that matter fail on their own if a fact has changed."""
     vs = {str(pf.get("version")) for pf in _live(fs) if pf.get("version")}
     if not vs:
         return Result("versions", NA, "no running session reports a version")
     new = sorted(vs - set(KNOWN_VERSIONS))
     return Result(
         "versions",
-        FAIL if new else PASS,
+        WARN if new else PASS,
         f"unchecked versions {', '.join(new)}: read every other result with that in mind"
         if new
         else f"running {', '.join(sorted(vs))}",
@@ -151,7 +154,8 @@ def check_versions(fs: ClaudeFS, deep: bool) -> Result:
 
 
 def check_env_session(fs: ClaudeFS, deep: bool) -> Result:
-    """CLAUDE_CODE_SESSION_ID in a session's children names that session, as the docs say."""
+    """CLAUDE_CODE_SESSION_ID in a session's children names that session, as the docs say. A warning, since
+    claudestra identifies its caller from the process chain, never from this variable (DESIGN.md §6.4)."""
     env = os.environ.get("CLAUDE_CODE_SESSION_ID")
     pid = os.getppid()
     while pid > 1:
@@ -159,13 +163,13 @@ def check_env_session(fs: ClaudeFS, deep: bool) -> Result:
             if env is None:
                 return Result(
                     "env-session-id",
-                    FAIL,
+                    WARN,
                     f"running under session {pf.session_id} but CLAUDE_CODE_SESSION_ID is not set",
                 )
             ok = env == pf.session_id
             return Result(
                 "env-session-id",
-                PASS if ok else FAIL,
+                PASS if ok else WARN,
                 "matches the process tree"
                 if ok
                 else f"environment says {env}, the process tree {pf.session_id} (after /clear or a bare --resume this is expected)",
@@ -178,7 +182,8 @@ def check_env_session(fs: ClaudeFS, deep: bool) -> Result:
 
 
 def check_bridge_ids(fs: ClaudeFS, deep: bool) -> Result:
-    """A pid file's session_<x> and its transcript's cse_<x> share their suffix."""
+    """A pid file's session_<x> and its transcript's cse_<x> share their suffix. A warning: only finding a
+    session by its Remote Control ID relies on it, and a mismatch makes that miss rather than find another."""
     seen, bad = 0, []
     for pf in _live(fs):
         b = pf.get("bridgeSessionId")
@@ -197,14 +202,15 @@ def check_bridge_ids(fs: ClaudeFS, deep: bool) -> Result:
             bad.append(f"{pf.session_id[:8]}: {b} vs {', '.join(sorted(cse))}")
     if not seen:
         return Result("bridge-ids", NA, "no running Remote Control session with bridge records")
-    return Result("bridge-ids", FAIL if bad else PASS, "; ".join(bad) or f"{seen} sessions' two bridge forms agree")
+    return Result("bridge-ids", WARN if bad else PASS, "; ".join(bad) or f"{seen} sessions' two bridge forms agree")
 
 
 def check_subagents(fs: ClaudeFS, deep: bool) -> Result:
     """Subagent transcripts are sidechains whose records carry a session ID.
 
     Only message records count: a forked subagent's file opens with a fork-context-ref record that
-    has neither field. Which session a subagent's records belong to is `claudestra audit subagents`' concern,
+    has neither field. A warning: only `claudestra audit subagents`, which reports, relies on it. Which
+    session a subagent's records belong to is `claudestra audit subagents`' concern,
     since a resume or fork can leave a copy under another session.
     """
     n, bad = 0, []
@@ -226,7 +232,7 @@ def check_subagents(fs: ClaudeFS, deep: bool) -> Result:
         return Result("subagents", NA, "no subagent transcripts")
     return Result(
         "subagents",
-        FAIL if bad else PASS,
+        WARN if bad else PASS,
         "; ".join(bad[:5]) or f"{n} subagent transcripts are sidechains with session IDs",
     )
 
@@ -249,14 +255,15 @@ def check_jobs(fs: ClaudeFS, deep: bool) -> Result:
 
 
 def check_claude_agents(fs: ClaudeFS, deep: bool) -> Result:
-    """`claude agents --json --all` runs and lists sessions with the documented fields."""
+    """`claude agents --json --all` runs and lists sessions with the documented fields. A warning, since
+    nothing in claudestra relies on it yet."""
     data, why = claude_agents()
     if data is None:
-        return Result("claude-agents", FAIL, why)
+        return Result("claude-agents", WARN, why)
     missing = sorted({k for x in data for k in ("sessionId", "kind", "cwd") if k not in x})
     return Result(
         "claude-agents",
-        FAIL if missing else PASS,
+        WARN if missing else PASS,
         f"entries lack {', '.join(missing)}" if missing else f"{len(data)} entries",
     )
 
@@ -298,14 +305,29 @@ def check_guard(fs: ClaudeFS, deep: bool, trust: Trust, machine: Machine) -> Res
     return Result("guard", PASS, "sessions are kept out of the config folder")
 
 
+def check_remote_control(fs: ClaudeFS, deep: bool, trust: Trust, machine: Machine) -> Result:
+    """Every session here starts with Remote Control, which claudestra requires (DESIGN.md §7.1): on in the
+    user's or managed settings, and off in no staffer's folder on this machine."""
+    folders = [sf.folder for sf in trust.staff if sf.folder is not None]
+    if why := remote_control.problems(fs, folders):
+        fix = (
+            "; propose `claudestra enable-remote-control` to the user"
+            if remote_control.effective(fs)[0] is not True
+            else ""
+        )
+        return Result("remote-control", FAIL, "; ".join(why) + fix)
+    return Result("remote-control", PASS, f"on for every session, by {remote_control.effective(fs)[1]}")
+
+
 # The checks that read the config, given it by run() so that --home and --config reach them.
-NEEDS_CONFIG = ("machine", "login-unit", "guard")
+NEEDS_CONFIG = ("machine", "login-unit", "guard", "remote-control")
 
 
 CHECKS: dict[str, Callable[..., Result]] = {
     "machine": check_machine,
     "login-unit": check_login_unit,
     "guard": check_guard,
+    "remote-control": check_remote_control,
     "versions": check_versions,
     "pid-files": check_pid_files,
     "proc-start": check_proc_start,

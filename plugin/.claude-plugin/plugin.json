@@ -1,6 +1,6 @@
 {
   "name": "claudestra",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Run long-lived Claude Code sessions as a staff: installs the claudestra CLI and keeps its guard in place.",
   "author": {
     "name": "Adityarup Laha"
