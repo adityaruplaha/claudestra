@@ -84,7 +84,7 @@ def change(path: Path, edit: Callable[[dict], None], name_of: Callable[[str], st
     edit(raw)
     _tidy(raw)
     text = emit(raw, name_of)
-    if yaml.safe_load(text) != {k: v for k, v in raw.items() if v}:
+    if (yaml.safe_load(text) or {}) != {k: v for k, v in raw.items() if v}:  # only the header loads as None
         raise Refused("claudestra would write a trust.yaml that does not read back as intended; nothing changed")
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, text)
