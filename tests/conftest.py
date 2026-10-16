@@ -14,6 +14,7 @@ from typer.testing import CliRunner
 
 from claudestra import context as context_mod
 from claudestra import portable
+from claudestra import trust as trust_mod
 from claudestra.caller import Caller
 from claudestra.claude_fs import ClaudeFS
 from claudestra.cli import ui
@@ -144,6 +145,15 @@ def isolated_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """claudestra's log, lock, backups and staging go into the temporary folder, never ~/.local or ~/.cache."""
     monkeypatch.setattr(common, "STATE_DIR", tmp_path / "state")
     monkeypatch.setattr(transfer, "STAGING", tmp_path / "staging")
+
+
+@pytest.fixture(autouse=True)
+def no_real_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """No test reads the user's ~/.config/claudestra: a load given no config folder, and no $CLAUDESTRA_CONFIG,
+    reads an empty one in the temporary folder."""
+    monkeypatch.setattr(
+        trust_mod, "config_dir", lambda: Path(os.environ.get(trust_mod.CONFIG_ENV) or tmp_path / "no-config")
+    )
 
 
 @pytest.fixture(autouse=True)

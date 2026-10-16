@@ -162,7 +162,7 @@ class Context:
         subject = self.subject
         if self.overridden and subject.kind != "human":
             raise Refused(f"--home, --config and ${CONFIG_ENV} are honoured for the user only")
-        if failed := checks.require(self.fs, needs):
+        if failed := checks.require(self.fs, needs, self.trust, self.machine):
             raise Refused("claudestra doctor fails " + "; ".join(f"{r.name} ({r.detail})" for r in failed))
         return subject
 

@@ -357,6 +357,6 @@ def run(
     ]
 
 
-def require(fs: ClaudeFS, names: list[str]) -> list[Result]:
+def require(fs: ClaudeFS, names: list[str], trust: Trust | None = None, machine: Machine | None = None) -> list[Result]:
     """The named checks that fail; an operation that depends on them refuses if any do."""
-    return [r for r in run(fs, names) if r.status == FAIL]
+    return [r for r in run(fs, names, trust=trust, machine=machine) if r.status == FAIL]
