@@ -5,6 +5,7 @@
   "author": {
     "name": "Adityarup Laha"
   },
+  "license": "Apache-2.0",
   "userConfig": {
     "source": {
       "type": "string",

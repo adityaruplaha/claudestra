@@ -126,3 +126,7 @@ Install a checkout with `uv tool install --editable .`; an editable install is n
 ## Releasing
 
 There is no changelog; the commit history is the record. To release, set the version in `pyproject.toml`, `plugin/.claude-plugin/plugin.json` and `VERSION` in `plugin/hooks/register.ts`, commit, and push a tag `v<version>`. The release workflow checks that all three name the tag's version, runs CI, and creates a GitHub release with generated notes.
+
+## Licence
+
+Apache License 2.0: see [LICENSE](LICENSE). Redistributions carry the [NOTICE](NOTICE) file.

@@ -1,0 +1,7 @@
+claudestra
+Copyright 2026 Adityarup Laha
+
+This product includes claudestra (https://github.com/adityaruplaha/claudestra),
+a tool developed by Adityarup Laha (https://adityaruplaha.me) that orchestrates
+long-lived Claude Code (https://claude.ai/code) sessions as a machine's staff,
+on one or many machines, through a chain of command model.
