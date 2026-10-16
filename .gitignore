@@ -225,3 +225,6 @@ __marimo__/
 
 # Written by Claude Code beside a plugin it loads from a folder
 plugin/.claude-plugin/types/
+
+# Working copies for the staffers working on branches; each is its own worktree
+.worktrees/
