@@ -1,5 +1,13 @@
 {
   "name": "claudestra",
-  "owner": { "name": "Adityarup Laha" },
-  "plugins": [{ "name": "claudestra", "source": "./plugin" }]
+  "owner": {
+    "name": "Adityarup Laha"
+  },
+  "plugins": [
+    {
+      "name": "claudestra",
+      "source": "./plugin"
+    }
+  ],
+  "description": "claudestra's own marketplace: one plugin that orchestrates long-lived Claude Code sessions as a staff."
 }
