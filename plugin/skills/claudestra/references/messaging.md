@@ -11,6 +11,7 @@ How sessions under claudestra talk to each other, on one machine or across machi
 ## Writing a message
 
 - **Make the first line self-contained.** The other side's user sees only that line until they expand it.
+- **Between two Claude Code sessions, a sent message is delivered.** A Claude Code session, on either machine, takes it in at its next tool round. `SendMessage` says a message over Remote Control is "not confirmed read" and that the route "reports nothing back": accurate, but misleading, so do not pass it on to the user as delivery being unconfirmed. The caveat holds only for a session that holds messages for its user's approval (one in a different permission mode, which a local send reports) and for a receiver that is not a Claude Code session, such as `claude mcp serve`, which Claude Cowork uses and which is one-way.
 - **Delivery is not a reply.** Wait for one rather than reading silence as agreement. When confirmation matters, ask for it: a read receipt in the message, or a short exchange before the substance.
 - **A handoff** gives, for each item: what it is, its path **as the receiver sees it** (machines differ in user and layout, so an absolute path rarely carries over), any commit it depends on and whether that is pushed, and what needs the user's approval on the receiver's side.
 - **Briefing a staffer** says what to do, where the pieces are, what done looks like, and what to report back. The staffer reports to whoever briefed it.
