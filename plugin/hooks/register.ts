@@ -1,11 +1,12 @@
-// claudestra's plugin: when a session starts, install the claudestra CLI this plugin pins, then put
+// claudestra's plugin: when a session starts, check that the claudestra CLI this plugin pins is installed,
+// and say how to install it if not, or install it when the user has turned on `auto_install`; then put
 // claudestra's guard and shell completion in place (DESIGN.md §6.5, §10), and remind the user to run
 // `claudestra setup` until they have chosen their preferences. The guard is the CLI's own, a PreToolUse hook and deny
 // rules in the user's settings, so it holds whether or not this plugin is enabled; the plugin puts it
-// back at every session's start, and offers no way to leave it out.
+// back at every session's start once the pinned claudestra is installed, and offers no way to leave it out.
 import type { EngineInterface, Register } from 'claude-code'
 
-// The claudestra this plugin installs; a test holds it to plugin.json's version.
+// The claudestra this plugin pins; a test holds it to plugin.json's version.
 export const VERSION = '0.2.1'
 export const RELEASE = `git+https://github.com/adityaruplaha/claudestra@v${VERSION}`
 
@@ -14,13 +15,26 @@ export const RELEASE = `git+https://github.com/adityaruplaha/claudestra@v${VERSI
 export const pinned = (source: string): string =>
   source.startsWith('git+') && !(source.split('/').pop() ?? '').includes('@') ? `${source}@v${VERSION}` : source
 
+// How uv installs claudestra from a source. A local folder is a checkout someone is developing, so it is
+// installed editable, as they would.
+export const installArgs = (source: string): string[] => [
+  '--force',
+  ...(source.startsWith('/') || source.startsWith('~') ? ['--editable'] : []),
+  source,
+]
+
+// The install command as the user would type it, quoting any argument the shell would split.
+const quoted = (arg: string) => (/^[\w@%+=:,./~-]+$/.test(arg) ? arg : `'${arg.replaceAll("'", "'\\''")}'`)
+export const installCommand = (source: string): string =>
+  ['uv', 'tool', 'install', ...installArgs(source)].map(quoted).join(' ')
+
 type Ran = { exitCode: number; stdout: string; stderr: string }
 
 // What the install step needs of the engine, so a test can stand in for it.
 export type Io = {
   run: (argv: string[], timeoutMs?: number) => Promise<Ran | undefined>
   status: (text: string | undefined) => void
-  toast: (text: string) => void
+  toast: (text: string, timeoutMs?: number) => void
 }
 
 export const io = ($: EngineInterface): Io => ({
@@ -32,25 +46,31 @@ export const io = ($: EngineInterface): Io => ({
     }
   },
   status: text => $.ui.status(text),
-  toast: text => $.ui.toast(text),
+  toast: (text, timeoutMs) => $.ui.toast(text, { timeoutMs }),
 })
 
 const said = (r: Ran | undefined) => (r === undefined ? 'did not run' : (r.stderr.trim().split('\n').pop() ?? ''))
 
 // The CLI is found through uv's own bin folder, so it need not be on the PATH the session was started with.
-export async function ensure(io: Io, source: string): Promise<string | undefined> {
+// Without `auto_install` the plugin installs nothing: it says what to run, and without the pinned claudestra
+// there is nothing to put the guard in place with.
+export async function ensure(io: Io, source: string, autoInstall: boolean): Promise<string | undefined> {
   const dir = await io.run(['uv', 'tool', 'dir', '--bin'])
   if (dir?.exitCode !== 0) {
-    io.toast('claudestra needs uv (https://docs.astral.sh/uv/) to install itself; its guard is not in place')
+    io.toast('claudestra needs uv (https://docs.astral.sh/uv/) to install it; its guard is not in place')
     return undefined
   }
   const cli = `${dir.stdout.trim()}/claudestra`
   const have = await io.run([cli, '--version'])
   if (have?.exitCode !== 0 || have.stdout.trim() !== VERSION) {
+    if (!autoInstall) {
+      const found = have?.exitCode === 0 ? `${have.stdout.trim()} is installed` : 'it is not installed'
+      const say = `claudestra ${VERSION} is needed and ${found}, so its guard is not in place.`
+      io.toast(`${say} Install it with: ${installCommand(source)}`, 30_000)
+      return undefined
+    }
     io.status(`claudestra: installing ${VERSION}`)
-    // A local folder is a checkout someone is developing, so it is installed editable, as they would.
-    const local = source.startsWith('/') || source.startsWith('~')
-    const got = await io.run(['uv', 'tool', 'install', '--force', '--quiet', ...(local ? ['--editable'] : []), source], 600_000)
+    const got = await io.run(['uv', 'tool', 'install', '--quiet', ...installArgs(source)], 600_000)
     io.status(undefined)
     if (got?.exitCode !== 0) {
       io.toast(`claudestra could not be installed from ${source}: ${said(got)}`)
@@ -68,9 +88,11 @@ export async function ensure(io: Io, source: string): Promise<string | undefined
 
 export const register: Register = (on, options) => {
   const source = typeof options.source === 'string' && options.source !== '' ? pinned(options.source) : RELEASE
+  const autoInstall = options.auto_install === true
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    $.clock.after(0, () => void ensure(io($), source)) // an install can take a while; the session does not wait
+    // An install can take a while; the session does not wait.
+    $.clock.after(0, () => void ensure(io($), source, autoInstall))
     return started
   })
 }

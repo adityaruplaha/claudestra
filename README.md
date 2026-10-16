@@ -19,7 +19,7 @@ claudestra ships as a Claude Code plugin. This repository is its own marketplace
 /plugin install claudestra@claudestra
 ```
 
-When a session starts, the plugin installs the claudestra version it pins with `uv tool install`, puts claudestra's guard in place (deny rules and a hook that keep sessions out of its config), and installs shell completion. Without the plugin, install the CLI yourself:
+When a session starts, the plugin checks that the claudestra version it pins is installed, puts claudestra's guard in place (deny rules and a hook that keep sessions out of its config), and installs shell completion. If that version is not installed, the plugin installs nothing by default: it shows the command that installs it, which a session offers to run for you. Turn on its `auto_install` option in `/config` to have it run the command itself. To install the CLI yourself, with or without the plugin:
 
 ```
 uv tool install git+https://github.com/adityaruplaha/claudestra@v0.2.1
