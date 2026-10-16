@@ -237,3 +237,24 @@ def no_real_login_unit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     fake = _NoSystemctl()
     monkeypatch.setattr(unit, "subprocess", fake)
     return fake
+
+
+@pytest.fixture(autouse=True, scope="session")
+def no_stale_test_sockets():
+    """Every tmux server a test started on a socket of its own (camtest-*) is killed and its socket removed when
+    the run ends, however the test ended: on 2026-10-17, 630 dead sockets had piled up in /tmp/tmux-<uid>."""
+    import subprocess
+    import time
+
+    started = time.time()
+    yield
+    folder = Path(os.environ.get("TMUX_TMPDIR") or "/tmp") / f"tmux-{os.getuid()}"
+    for sock in folder.glob("camtest-*") if folder.is_dir() else []:
+        try:
+            if sock.stat().st_mtime < started - 1:
+                continue  # not this run's
+        except OSError:
+            continue
+        subprocess.run(["tmux", "-L", sock.name, "kill-server"], capture_output=True)
+        if sock.exists():
+            sock.unlink()
