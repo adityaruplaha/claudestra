@@ -56,8 +56,8 @@ def test_the_list_is_narrowed_and_completion_agrees(home: Home, at_terminal, mon
     offered = {}
 
     def choose(message, choices, **kw):
-        offered[message] = [c.value for c in choices]
-        return Answer(choices[0].value)
+        offered[message] = values(choices)
+        return Answer(offered[message][0])
 
     monkeypatch.setattr(select.questionary, "select", choose)
     off_staff = select.Sessions(staff=False, message="off staff")
@@ -76,7 +76,35 @@ def test_several_are_ticked_from_one_list(home: Home, at_terminal, monkeypatch):
     for sid in (A, B):
         home.transcript(sid, home.folder("w"))
     home.acting(HUMAN)
-    monkeypatch.setattr(
-        select.questionary, "checkbox", lambda message, choices, **kw: Answer([c.value for c in choices])
-    )
+    monkeypatch.setattr(select.questionary, "checkbox", lambda message, choices, **kw: Answer(values(choices)))
     assert sorted(s.id for s in select.Sessions(many=True).get(None)) == [A, B]
+
+
+def values(choices) -> list:
+    """What a picker offers, without its header row."""
+    return [c.value for c in choices if not isinstance(c, select.questionary.Separator)]
+
+
+def test_a_picker_is_a_coloured_table_that_filters(home: Home, at_terminal, monkeypatch):
+    """A header that every filter keeps, rows in aligned columns, coloured as the lists are, and filtered by
+    their text."""
+    home.transcript(A, home.folder("w"))
+    home.staff_file(A, "one", {HERE: "~/w"})
+    home.staff_file(B, "a-longer-name", {"elsewhere": "~/w"})
+    home.acting(HUMAN, {A: "device"})
+    shown = {}
+
+    def choose(message, choices, **kw):
+        shown["choices"] = choices
+        return Answer(values(choices)[0])
+
+    monkeypatch.setattr(select.questionary, "select", choose)
+    select.Staffers().get()
+    header, *rows = shown["choices"]
+    assert isinstance(header, select.questionary.Separator) and header.title.startswith("name")
+    assert "x" in header.title.lower()  # the header is kept whatever is typed
+    texts = ["".join(t for _, t in r.title) for r in rows]
+    assert texts[0].index(B[:8]) == texts[1].index(A[:8]) == header.title.index("session")
+    assert "one" in rows[1].title.lower() and "elsewhere" in rows[0].title.lower()
+    styles = {t.strip(): st for r in rows for st, t in r.title}
+    assert "ansicyan" in styles[A[:8]] and "magenta" in styles["device"] and "bold" in styles["one"]

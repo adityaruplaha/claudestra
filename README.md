@@ -52,7 +52,6 @@ Every argument that names a session, staffer, trash entry, machine, folder or ch
 
 | Command                   |                                                                                                             |
 | :------------------------ | :---------------------------------------------------------------------------------------------------------- |
-| `clost ls`              | Staffers and running sessions; `--all` for every session.                                                 |
 | `clost show SESSION`    | One session in full.                                                                                        |
 | `clost summary SESSION` | Whether a session is finished: the prompts you typed, what other sessions relayed, its last reply.          |
 | `clost whoami`          | Who claudestra takes you to be, your scope, and who manages you.                                            |
@@ -68,6 +67,7 @@ Every reading command takes `--json`.
 
 | Command                          |                                                                                                                                |
 | :------------------------------- | :----------------------------------------------------------------------------------------------------------------------------- |
+| `list`                         | Every session on this machine, staffers first. Also `ls`.                                                                      |
 | `start`, `stop`, `restart` | Run sessions in claudestra's tmux session.                                                                                     |
 | `type SESSION TEXT`            | Type a line into a running session and press Enter.                                                                            |
 | `peek SESSION`                 | The end of a running session's screen, without attaching.                                                                      |
@@ -82,7 +82,7 @@ Every reading command takes `--json`.
 
 `clost autostart` starts this machine's autostart staffers; the login unit runs it at login.
 
-**The staff**: `clost staff list | hire | dismiss | describe`; `staff list --tree` shows who manages whom.
+**The staff**: `clost staff list | hire | dismiss | describe | local-folder`. `staff list` (also `ls`) shows the staff on every machine and the machine each lives on; `--scope device,folder` narrows it by scope, `--resident`, `--non-resident` and `--visitors` (staffers from another machine with a folder here) by machine, and `--tree` shows who manages whom on this machine. `staff local-folder assign | remove | list-missing` gives a staffer that lives on another machine a folder on this one, takes it away, or lists those with none.
 
 **The trash**: `clost trash list | add | restore | purge`. Claude Code has no per-session delete; claudestra moves a session and every store keyed by it to a trash, puts it back exactly with `restore`, and only `purge` deletes.
 

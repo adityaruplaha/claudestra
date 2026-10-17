@@ -23,8 +23,11 @@ from ..caller import Refused
 from ..claude_fs import UUID
 from ..ops import trash as trash_ops
 from ..portable import given_folder
-from . import ui
-from .ui import fail, label, state, where
+from . import listing, ui
+from .listing import Cell
+from .ui import fail, label, state_text, where
+
+Row = tuple[Cell, ...]  # a choice as a picker shows it: its cells, in the selector's columns
 
 
 def _need(what: str) -> None:
@@ -39,14 +42,39 @@ def _context():
     return Context._current or Context(None, None)
 
 
-def pick(message: str, choices: list[tuple[str, str]], what: str) -> str:
-    """One value from (value, label) pairs, picked at a terminal from a list that filters as one types."""
+class _Title(list):
+    """A choice's title as prompt_toolkit tokens, which questionary's search filter can also read as text: it
+    lower-cases a title to match what is typed, and a plain list has no `lower`."""
+
+    def lower(self) -> str:
+        return "".join(text for _, text in self).lower()
+
+
+class _Header(str):
+    """The header row, a separator that every filter keeps, so the columns stay labelled as one types."""
+
+    def lower(self) -> _Header:
+        return self
+
+    def __contains__(self, _typed: object) -> bool:
+        return True
+
+
+def _table(columns: tuple[str, ...], choices: list[tuple[str, Row]], indent: int = 0) -> list:
+    """The choices as questionary shows them: a header, then each row in aligned, coloured columns."""
+    header, rows = listing.aligned(columns, [cells for _, cells in choices])
+    items = [questionary.Choice(_Title(toks), value=v) for (v, _), toks in zip(choices, rows, strict=True)]
+    return ([questionary.Separator(_Header(" " * indent + header))] if columns else []) + items
+
+
+def pick(message: str, choices: list[tuple[str, Row]], what: str, columns: tuple[str, ...] = ()) -> str:
+    """One value from (value, row) pairs, picked at a terminal from a table that filters as one types."""
     _need(what)
     if not choices:
         raise fail(f"there is no {what} to choose from")
     answer = questionary.select(
         message,
-        choices=[questionary.Choice(text, value=v) for v, text in choices],
+        choices=_table(columns, choices),
         use_search_filter=True,
         use_jk_keys=False,
         instruction="(type to filter)",
@@ -56,14 +84,14 @@ def pick(message: str, choices: list[tuple[str, str]], what: str) -> str:
     return answer
 
 
-def pick_many(message: str, choices: list[tuple[str, str]], what: str) -> list[str]:
-    """Any number of values, at least one, ticked at a terminal in a list that filters as one types."""
+def pick_many(message: str, choices: list[tuple[str, Row]], what: str, columns: tuple[str, ...] = ()) -> list[str]:
+    """Any number of values, at least one, ticked at a terminal in a table that filters as one types."""
     _need(what)
     if not choices:
         raise fail(f"there is no {what} to choose from")
     answer = questionary.checkbox(
         message,
-        choices=[questionary.Choice(text, value=v) for v, text in choices],
+        choices=_table(columns, choices, indent=2),  # past the tick box
         use_search_filter=True,
         use_jk_keys=False,
         instruction="(type to filter, space ticks, enter goes on)",
@@ -79,6 +107,7 @@ class Selector:
     what = "a value"  # what to give, as a refusal names it
     message = "Which?"
     help = ""
+    columns: tuple[str, ...] = ()  # the picker's column headers, as the matching list names them
 
     def __init__(self, *, many: bool = False, message: str | None = None, help: str | None = None):
         self.many = many
@@ -92,8 +121,8 @@ class Selector:
             setattr(other, k, v)
         return other
 
-    def choices(self) -> list[tuple[str, str]]:
-        """(value, label) for each value this selector allows, in the order a person should see them."""
+    def choices(self) -> list[tuple[str, Row]]:
+        """(value, row) for each value this selector allows, in the order a person should see them."""
         raise NotImplementedError
 
     def resolve(self, token: str) -> Any:
@@ -102,15 +131,18 @@ class Selector:
     def get(self, token: Any = None) -> Any:
         """The value a token names; left out, picked at a terminal. A list for a selector of many."""
         if self.many:
-            tokens = list(token or []) or pick_many(self.message, self.choices(), self.what)
+            tokens = list(token or []) or pick_many(self.message, self.choices(), self.what, self.columns)
             return [self.resolve(t) for t in tokens]
-        return self.resolve(token if token is not None else pick(self.message, self.choices(), self.what))
+        if token is None:
+            token = pick(self.message, self.choices(), self.what, self.columns)
+        return self.resolve(token)
 
     def complete(self, incomplete: str) -> list[tuple[str, str]]:
         """Shell completion: the allowed values that start with what is typed, or whose label does."""
         try:
             low = incomplete.lower()
-            return [(v, t) for v, t in self.choices() if v.startswith(incomplete) or (low and low in t.lower())]
+            rows = [(v, listing.plain(cells)) for v, cells in self.choices()]
+            return [(v, t) for v, t in rows if v.startswith(incomplete) or (low and low in t.lower())]
         except Exception:  # noqa: BLE001 - completion must never break the shell
             return []
 
@@ -137,6 +169,7 @@ class Sessions(Selector):
     what = "a session"
     message = "Which session?"
     help = "A full ID, 8+ character prefix, bridge or job ID, title or staffer's name; picked at a terminal."
+    columns = ("session", "name", "state", "folder")
 
     def __init__(
         self,
@@ -158,13 +191,16 @@ class Sessions(Selector):
             and self.keep(s)
         )
 
-    def choices(self) -> list[tuple[str, str]]:
+    def choices(self) -> list[tuple[str, Row]]:
         c = _context()
         found = sorted(
             (s for s in c.model.sessions.values() if self.allows(s)), key=lambda s: (not s.staff_file, -s.mtime)
         )
         return [
-            (s.session_id, f"{s.session_id[:8]}  {label(s)[:40]:<40}  {state(s):<12}  {where(s, c.fs.home)}")
+            (
+                s.session_id,
+                (listing.short_id(s.session_id), listing.name(label(s)[:40]), state_text(s), where(s, c.fs.home)),
+            )
             for s in found
         ]
 
@@ -179,6 +215,7 @@ class Staffers(Selector):
     what = "a staffer"
     message = "Which staffer?"
     help = "A staffer's name or full ID, or anything that names its session here; picked at a terminal."
+    columns = ("name", "session", "scope", "lives on")
 
     def __init__(
         self,
@@ -192,7 +229,7 @@ class Staffers(Selector):
         super().__init__(**kw)
         self.here, self.on, self.scoped, self.keep = here, on, scoped, keep
 
-    def choices(self) -> list[tuple[str, str]]:
+    def choices(self) -> list[tuple[str, Row]]:
         c = _context()
         t = c.trust
 
@@ -204,10 +241,16 @@ class Staffers(Selector):
                 and self.keep(sf.session)
             )
 
+        host = c.machine.hostname
         return [
             (
                 sf.session,
-                f"{sf.name}  ({sf.session[:8]}" + (f", {t.scope(sf.session)} scope)" if t.scope(sf.session) else ")"),
+                (
+                    listing.name(sf.name),
+                    listing.short_id(sf.session),
+                    listing.scope(t.scope(sf.session)),
+                    listing.machines(listing.lives_on(c, sf), host),
+                ),
             )
             for sf in sorted(t.staff, key=lambda f: f.name)
             if allowed(sf)
@@ -233,9 +276,14 @@ class TrashEntries(Selector):
     what = "a trash entry"
     message = "Which trash entry?"
     help = "A trash entry, or 8+ characters of its session ID; picked at a terminal."
+    columns = ("entry", "title")
 
-    def choices(self) -> list[tuple[str, str]]:
-        return [(e.name, f"{e.name}  {mf.get('title') or '-'}") for e, mf in trash_ops.entries(_context().fs) if mf]
+    def choices(self) -> list[tuple[str, Row]]:
+        return [
+            (e.name, (listing.Text(e.name, style="cyan"), mf.get("title") or "-"))
+            for e, mf in trash_ops.entries(_context().fs)
+            if mf
+        ]
 
 
 class Machines(Selector):
@@ -244,18 +292,19 @@ class Machines(Selector):
     what = "a machine"
     message = "Which machine?"
     help = "A machine, as trust.yaml names it; picked at a terminal."
+    columns = ("machine", "ssh")
 
     def __init__(self, *, other: bool = True, **kw):
         super().__init__(**kw)
         self.other = other
 
-    def choices(self) -> list[tuple[str, str]]:
+    def choices(self) -> list[tuple[str, Row]]:
         c = _context()
-        here = c.machine.hostname.lower()
+        here = c.machine.hostname
         return [
-            (m.hostname, m.hostname + ("  (accepts connections)" if m.ssh else ""))
+            (m.hostname, (listing.machine(m.hostname, here), listing.dim(m.ssh)))
             for m in c.trust.machines.values()
-            if not (self.other and m.hostname.lower() == here)
+            if not (self.other and m.hostname.lower() == here.lower())
         ]
 
 
@@ -266,8 +315,8 @@ class OneOf(Selector):
         super().__init__(message=message, help=kw.pop("help", None) or f"One of {', '.join(options)}.", **kw)
         self.options, self.what = options, what
 
-    def choices(self) -> list[tuple[str, str]]:
-        return [(k, f"{k}: {v}" if v else k) for k, v in self.options.items()]
+    def choices(self) -> list[tuple[str, Row]]:
+        return [(k, (listing.name(k), listing.dim(v) if v else "")) for k, v in self.options.items()]
 
     def resolve(self, token: str) -> str:
         if token not in self.options:
@@ -320,18 +369,23 @@ class Windows(Selector):
     what = "a session, or all"
     message = "Which session's window?"
     help = "The session whose window to open, or `all` for the whole tmux session; picked at a terminal."
+    columns = ("session", "name")
 
     def __init__(self, *, socket: str | None = None, **kw):
         super().__init__(**kw)
         self.socket = socket
 
-    def choices(self) -> list[tuple[str, str]]:
+    def choices(self) -> list[tuple[str, Row]]:
         from ..runners import tmux as runner
 
         c = _context()
-        rows = [("all", "all: the whole tmux session")]
+        rows: list[tuple[str, Row]] = [("all", (listing.name("all"), listing.dim("the whole tmux session")))]
         windows = runner.Tmux(self.socket).windows()
-        return rows + [(w.session, f"{w.session[:8]}  {c.name_of(w.session) or w.name}") for w in windows if not w.dead]
+        return rows + [
+            (w.session, (listing.short_id(w.session), listing.name(c.name_of(w.session) or w.name)))
+            for w in windows
+            if not w.dead
+        ]
 
     def resolve(self, token: str) -> str | None:
         """The session's ID, or None for the whole tmux session."""

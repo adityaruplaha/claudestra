@@ -13,8 +13,9 @@ import typer
 from rich.text import Text
 
 from ..caller import Refused
+from ..context import Context
 from ..session import Session
-from . import select
+from . import listing, select
 from .base import Ctx, app, refusing, session_app, staff_app
 from .ui import (
     AsJson,
@@ -52,6 +53,18 @@ STAFFER = select.Staffers()
 SPAWN_IN = select.Folder(message="Spawn it in which folder?", help="The folder it works in; browsed to at a terminal.")
 LINE = select.Text("Text:", "the line to type")
 DESCRIPTION = select.Text("Description:", "what it works on")
+ELSEWHERE = select.Staffers(  # local-folder: a staffer whose session lives on another machine
+    keep=lambda sid: sid not in Context.current().model.sessions,
+    help="A staffer whose session lives on another machine; picked at a terminal.",
+)
+ELSEWHERE_WITH_FOLDER = select.Staffers(
+    here=True,
+    keep=lambda sid: sid not in Context.current().model.sessions,
+    help="A staffer whose session lives on another machine and has a folder here; picked at a terminal.",
+)
+LOCAL_FOLDER = select.Folder(
+    message="Its folder on this machine?", help="Its folder on this machine; browsed to at a terminal."
+)
 
 
 def _sessions(c: Ctx, refs: list[str], autostart: bool, chooser: select.Sessions | None = None) -> list[Session]:
@@ -292,22 +305,46 @@ def spawn(
 
 
 @staff_app.command("list")
+@staff_app.command("ls", hidden=True)
 def staff_list(
     ctx: typer.Context,
+    scope: Annotated[
+        str | None,
+        typer.Option("--scope", help="Only staffers with these scopes: device, folder, or both, comma-separated."),
+    ] = None,
+    resident: Annotated[bool, typer.Option("--resident", help="Staffers whose session lives on this machine.")] = False,
+    non_resident: Annotated[
+        bool, typer.Option("--non-resident", help="Staffers whose session lives on another machine.")
+    ] = False,
+    visitors: Annotated[
+        bool, typer.Option("--visitors", help="Staffers that live on another machine and have a folder on this one.")
+    ] = False,
     tree: Annotated[bool, typer.Option("--tree", help="Who manages whom on this machine, as a tree.")] = False,
     as_json: AsJson = False,
 ) -> None:
-    """The staff: each staffer's name, session, scope and folder on this machine; --tree for who manages whom."""
-    import json
+    """The staff, on every machine: each staffer's name, session, scope, the machine it lives on and its folder;
+    --tree for who manages whom here. Also `claudestra staff ls`. The residency filters add to each other."""
 
-    from rich.table import Table
     from rich.tree import Tree
 
     from ..trust import tilde
 
     c: Ctx = ctx.obj
     t_ = c.trust
-    staff = sorted(t_.staff, key=lambda f: f.name)
+    lives_here = set(c.model.sessions)
+    scopes = {x.strip() for x in scope.split(",") if x.strip()} if scope is not None else None
+    if scopes is not None and (not scopes or not scopes <= {"device", "folder"}):
+        raise fail("--scope takes device, folder, or both, comma-separated")
+
+    def wanted(sf) -> bool:
+        if scopes is not None and t_.scope(sf.session) not in scopes:
+            return False
+        if not (resident or non_resident or visitors):
+            return True
+        home = sf.session in lives_here
+        return (resident and home) or (non_resident and not home) or (visitors and not home and sf.folder is not None)
+
+    staff = sorted((sf for sf in t_.staff if wanted(sf)), key=lambda f: f.name)
 
     def boss(sf) -> str | None:
         """Who it answers to here: its nearest folder manager, else a device scope, else the user (None)."""
@@ -320,44 +357,44 @@ def staff_list(
         return devices[0].session if devices else None
 
     here = [sf for sf in staff if sf.folder is not None]
-    if as_json:
-        rows = [
-            {
+    if as_json or not tree:
+        host = c.machine.hostname
+        listing.Listing(
+            [
+                listing.Column("name", lambda sf: listing.name(sf.name)),
+                listing.Column("session", lambda sf: listing.short_id(sf.session)),
+                listing.Column("scope", lambda sf: listing.scope(t_.scope(sf.session))),
+                listing.Column("lives on", lambda sf: listing.machines(listing.lives_on(c, sf), host)),
+                listing.Column("folder", lambda sf: listing.staff_folder(c, sf), wrap=True),
+            ],
+            lambda sf: {
                 "name": sf.name,
                 "session": sf.session,
                 "scope": t_.scope(sf.session),
+                "resident": sf.session in lives_here,
+                "lives_on": listing.lives_on(c, sf),
                 "folder": str(sf.folder) if sf.folder else None,
                 "folders": sf.folders,
                 "answers_to": boss(sf) if sf.folder else None,
-            }
-            for sf in staff
-        ]
-        print(json.dumps(rows, indent=2))
+            },
+        ).print(staff, as_json)
         return
-    if tree:
-        root = Tree(Text("the user", style="bold"))
-        nodes: dict[str | None, Tree] = {None: root}
-        pending = list(here)
-        while pending:  # parents before children: a boss is placed before those who answer to it
-            placed = [sf for sf in pending if boss(sf) in nodes]
-            if not placed:  # what is left answers to no one placed, so to the user
-                placed = pending
-            for sf in placed:
-                scope = t_.scope(sf.session)
-                label = Text(sf.name, style="bold") + Text(
-                    f"  {scope + ' scope, ' if scope else ''}{tilde(sf.folder, c.fs.home)}", style="dim"
-                )
-                nodes[sf.session] = nodes.get(boss(sf), root).add(label)
-            pending = [sf for sf in pending if sf not in placed]
-        out.print(root)
-        return
-    t = Table(box=None, header_style="bold", pad_edge=False)
-    for col in ("name", "session", "scope", "folder here"):
-        t.add_column(col, no_wrap=col != "folder here")
-    for sf in staff:
-        where_ = tilde(sf.folder, c.fs.home) if sf.folder else Text("(not on this machine)", style="dim")
-        t.add_row(sf.name, sf.session[:8], t_.scope(sf.session) or "-", where_)
-    out.print(t)
+    # --tree
+    root = Tree(Text("the user", style="bold"))
+    nodes: dict[str | None, Tree] = {None: root}
+    pending = list(here)
+    while pending:  # parents before children: a boss is placed before those who answer to it
+        placed = [sf for sf in pending if boss(sf) in nodes]
+        if not placed:  # what is left answers to no one placed, so to the user
+            placed = pending
+        for sf in placed:
+            scope_ = t_.scope(sf.session)
+            label = Text(sf.name, style="bold") + Text(
+                f"  {scope_ + ' scope, ' if scope_ else ''}{tilde(sf.folder, c.fs.home)}", style="dim"
+            )
+            nodes[sf.session] = nodes.get(boss(sf), root).add(label)
+        pending = [sf for sf in pending if sf not in placed]
+    out.print(root)
 
 
 @staff_app.command()
@@ -423,3 +460,60 @@ def describe(
     refusing(lambda: st.set_description(description).perform(go_ahead(yes, dry)))
     if not dry:
         out.print(Text("described", style="green"))
+
+
+local_folder_app = typer.Typer(
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+    help="A folder on this machine for a staffer that lives on another (the user's, and a device scope's).",
+)
+staff_app.add_typer(local_folder_app, name="local-folder")
+
+
+@local_folder_app.command("assign")
+def local_folder_assign(
+    ctx: typer.Context,
+    staffer: ELSEWHERE.arg = None,
+    folder: LOCAL_FOLDER.arg = None,
+    dry: Dry = False,
+    yes: Yes = False,
+) -> None:
+    """Give a staffer that lives on another machine a folder on this one, in its staff file."""
+    c: Ctx = ctx.obj
+    st = c.staffer(ELSEWHERE.get(staffer))
+    folder = LOCAL_FOLDER.get(folder)
+    refusing(lambda: st.assign_local_folder(folder).perform(go_ahead(yes, dry)))
+    if not dry:
+        out.print(Text("assigned; `claudestra staff local-folder remove` takes it away", style="green"))
+
+
+@local_folder_app.command("remove")
+def local_folder_remove(
+    ctx: typer.Context, staffer: ELSEWHERE_WITH_FOLDER.arg = None, dry: Dry = False, yes: Yes = False
+) -> None:
+    """Take this machine's folder out of the staff file of a staffer that lives on another machine."""
+    c: Ctx = ctx.obj
+    st = c.staffer(ELSEWHERE_WITH_FOLDER.get(staffer))
+    refusing(lambda: st.remove_local_folder().perform(go_ahead(yes, dry)))
+    if not dry:
+        out.print(Text("removed", style="green"))
+
+
+@local_folder_app.command("list-missing")
+def local_folder_list_missing(ctx: typer.Context, as_json: AsJson = False) -> None:
+    """The staffers that live on another machine and have no folder on this one."""
+    c: Ctx = ctx.obj
+    host = c.machine.hostname
+    missing = sorted(
+        (sf for sf in c.trust.staff if sf.folder is None and sf.session not in c.model.sessions), key=lambda f: f.name
+    )
+    listing.Listing(
+        [
+            listing.Column("name", lambda sf: listing.name(sf.name)),
+            listing.Column("session", lambda sf: listing.short_id(sf.session)),
+            listing.Column("lives on", lambda sf: listing.machines(listing.lives_on(c, sf), host)),
+            listing.Column("folder there", lambda sf: listing.staff_folder(c, sf), wrap=True),
+        ],
+        lambda sf: {"session": sf.session, "name": sf.name, "folders": sf.folders},
+        empty="every staffer that lives on another machine has a folder here",
+    ).print(missing, as_json)

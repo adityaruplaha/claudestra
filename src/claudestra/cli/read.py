@@ -1,4 +1,4 @@
-"""The reading commands: ls (list), show, summary, whoami, check, audit, doctor. Each takes a
+"""The reading commands: session list, show, summary, whoami, check, audit, doctor. Each takes a
 ReadOnlyAction and prints what it returns."""
 
 from __future__ import annotations
@@ -24,8 +24,8 @@ from ..ops import remote_control
 from ..ops.audit import REPORTS
 from ..proctree import describe as describe_chain
 from ..trust import tilde
-from . import select
-from .base import Ctx, app, refusing
+from . import listing, select
+from .base import Ctx, app, refusing, session_app
 from .ui import (
     AsJson,
     Dry,
@@ -44,101 +44,56 @@ ANY = select.Sessions()
 ANY_MANY = select.Sessions(many=True, help="Sessions, as for one; picked at a terminal.")
 
 
-def _tags(c: Ctx, sid: str, s=None) -> Text:
-    t = Text()
-    scope = c.trust.scope(sid)
-    for text, style in (
-        (f"{scope} scope" if scope else None, "magenta"),
-        ("autostart" if sid in c.trust.autostart(c.machine.hostname) else None, "blue"),
-        ("protected" if s and c.trust.is_protected(s.folder, s.homes[0]) else None, "yellow"),
-        ("staff" if c.trust.staff_file(sid) else None, "cyan"),
-    ):
-        if text:
-            t.append(("  " if t else "") + text, style=style)
-    return t
-
-
-@app.command("ls")
-@app.command("list", hidden=True)
-def ls_cmd(
-    ctx: typer.Context,
-    show_all: Annotated[
-        bool, typer.Option("--all", "-a", help="Every session, not only staffers and running ones.")
-    ] = False,
-    as_json: AsJson = False,
-) -> None:
-    """Sessions on this machine: staffers and running sessions, or --all. Also `claudestra list`."""
+@session_app.command("list")
+@session_app.command("ls", hidden=True)
+def ls_cmd(ctx: typer.Context, as_json: AsJson = False) -> None:
+    """Every session on this machine, staffers first, then running ones. Also `claudestra session ls`."""
     c: Ctx = ctx.obj
-    listing = refusing(List(show_all).perform)
+    found = refusing(List().perform)
     home = c.fs.home
-    rows = [s.record for s in listing.sessions]
-    if as_json:
-        print(
-            json.dumps(
-                [
-                    {
-                        "session": s.session_id,
-                        "name": s.name,
-                        "staffer": s.staff_file.name if s.staff_file else None,
-                        "homes": s.homes,
-                        "folder": str(s.folder) if s.folder else None,
-                        "state": s.state,
-                        "scope": c.trust.scope(s.session_id),
-                        "protected": c.trust.is_protected(s.folder, s.homes[0]),
-                        "last_active": when(s.mtime),
-                    }
-                    for s in rows
-                ]
-                + [  # running, with no transcript yet, as the table shows them
-                    {
-                        "session": r.session_id,
-                        "name": r.name,
-                        "folder": r.cwd,
-                        "state": f"{r.kind} {r.status or ''}".strip(),
-                        "transcript": False,
-                    }
-                    for r in listing.unwritten
-                ],
-                indent=2,
-            )
-        )
-        return
-    t = Table(
-        title=f"{c.machine.hostname}: {listing.total} sessions, {listing.running} running",
-        title_justify="left",
-        caption=None if show_all else "staffers and running sessions; --all for every one",
-        caption_justify="left",
-        header_style="bold",
-        box=None,
-        pad_edge=False,
+    sessions = listing.Listing(
+        [
+            listing.Column("session", lambda s: listing.short_id(s.session_id)),
+            listing.Column("name", lambda s: listing.name(label(s))),
+            listing.Column("state", state_text),
+            listing.Column("folder", lambda s: where(s, home)),
+            listing.Column("last active", lambda s: when(s.mtime), style="dim"),
+            listing.Column("", lambda s: listing.tags(c, s.session_id, s)),
+        ],
+        lambda s: {
+            "session": s.session_id,
+            "name": s.name,
+            "staffer": s.staff_file.name if s.staff_file else None,
+            "homes": s.homes,
+            "folder": str(s.folder) if s.folder else None,
+            "state": s.state,
+            "scope": c.trust.scope(s.session_id),
+            "protected": c.trust.is_protected(s.folder, s.homes[0]),
+            "last_active": when(s.mtime),
+        },
+        title=f"{c.machine.hostname}: {found.total} sessions, {found.running} running",
     )
-    t.add_column("session", style="cyan", no_wrap=True)
-    t.add_column("name", style="bold")
-    t.add_column("state")
-    t.add_column("folder", no_wrap=True)
-    t.add_column("last active", style="dim", no_wrap=True)
-    t.add_column("")
-    for s in rows:
-        t.add_row(s.session_id[:8], label(s), state_text(s), where(s, home), when(s.mtime), _tags(c, s.session_id, s))
-    for a in listing.elsewhere:
-        t.add_row(
-            a.session[:8],
-            a.name,
-            Text(f"not on {c.machine.hostname}", style="dim"),
-            tilde(a.folder, home),
-            "-",
-            _tags(c, a.session),
+    unwritten = [  # counted as running, so shown: a session that has not written a transcript yet
+        (
+            (
+                listing.short_id(r.session_id),
+                listing.name(r.name),
+                Text(f"{r.kind} {r.status or ''} (pid {r.pid}), no transcript yet".replace("  ", " "), style="yellow"),
+                tilde(r.cwd, home) if r.cwd else "-",
+                "-",
+                "",
+            ),
+            {
+                "session": r.session_id,
+                "name": r.name,
+                "folder": r.cwd,
+                "state": f"{r.kind} {r.status or ''}".strip(),
+                "transcript": False,
+            },
         )
-    for r in listing.unwritten:  # counted as running, so shown: a session that has not written a transcript yet
-        t.add_row(
-            r.session_id[:8],
-            r.name or "-",
-            Text(f"{r.kind} {r.status or ''} (pid {r.pid}), no transcript yet".replace("  ", " "), style="yellow"),
-            tilde(r.cwd, home) if r.cwd else "-",
-            "-",
-            "",
-        )
-    out.print(t)
+        for r in found.unwritten
+    ]
+    sessions.print([s.record for s in found.sessions], as_json, unwritten)
 
 
 @app.command()

@@ -221,7 +221,7 @@ def start(fs: ClaudeFS, host: str, t: Tmux, launch: Launch, claude: str, dry: bo
         if (now := t.window(launch.session)) and now.dead:
             return f"exited    {launch.name} at once (status {now.status}); its window is kept for `claudestra session attach`"
         time.sleep(0.25)
-    return f"started   {launch.name}; no session file after {STARTUP_WAIT:g}s, so `claudestra ls` may show it stopped for a moment"
+    return f"started   {launch.name}; no session file after {STARTUP_WAIT:g}s, so `claudestra session list` may show it stopped for a moment"
 
 
 def stop(fs: ClaudeFS, t: Tmux, sid: str, name: str, dry: bool, force: bool) -> str:

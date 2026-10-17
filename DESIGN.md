@@ -181,8 +181,10 @@ The relations, with D for a device scope:
 | move | ✅ | | ✅ | | | | | |
 | trash | ✅ | | | | | | ✅ | |
 | send | ✅ | | | | | | | |
+| local-folder assign | ✅ | | ✅ | ✅ | ✅ | ✅ | | |
+| local-folder remove | ✅ | | ✅ | ✅ | ✅ | ✅ | | |
 
-✅ allowed; ⚠️ allowed, with a caveat noted here; blank, refused. `fix-name` and `describe` also allow the staffer itself. For `hire` and `spawn`, the columns are the relation the subject would have to the session once hired or begun.
+✅ allowed; ⚠️ allowed, with a caveat noted here; blank, refused. `fix-name` and `describe` also allow the staffer itself. For `hire` and `spawn`, the columns are the relation the subject would have to the session once hired or begun. `local-folder assign` and `remove` act only on a staffer whose session lives on another machine, and change only this machine's folder in its staff file.
 
 **Actions on anything else:**
 
@@ -205,7 +207,7 @@ folder:
 description: <what it works on>
 ```
 
-- **`staff.d/` is claudestra's to write.** `hire` writes a staff file, with a header saying so, and `rename`, `move`, `send`, `fix-name` and `describe` change it. `describe` changes what a staffer works on; whoever may hire a staffer may describe it, and so may the staffer itself. No session edits it directly, and `claudestra check` warns of a staff file claudestra did not write.
+- **`staff.d/` is claudestra's to write.** `hire` writes a staff file, with a header saying so, and `rename`, `move`, `send`, `fix-name`, `describe` and `local-folder` change it. `describe` changes what a staffer works on; whoever may hire a staffer may describe it, and so may the staffer itself. No session edits it directly, and `claudestra check` warns of a staff file claudestra did not write.
 - **Hiring**: the name defaults to the session's title and the folder to where the session is filed; the description is required. Who may hire is worked out from that folder (§6.1). A session never hires itself.
 - **Dismissing** moves the staff file to `staff-dismissed.d/` exactly as it is. The session is untouched, and so is any scope it holds. `hire` on a dismissed session brings the file back, with whatever is given written over it, and its scope with it. Dismissal is refused while the staffer runs in claudestra's tmux or starts at login on any machine, since either would leave something nobody answers for; and `trash` refuses a staffer, so a staffer is dismissed before its session is trashed.
 - **Its folder must be exactly the folder its session is filed under, redirects followed**, since resuming from any other folder forks the session (§3); and where the transcript records the folder the session started in, that very folder, since folders can share a slug. Folders are compared by exact slug. `claudestra check` reports a mismatch as an error, and `start` refuses it.
@@ -298,15 +300,18 @@ claudestra/
     checks.py           claudestra doctor
     runners/            the tmux runner, and Launch
     ops/                the work on files, with no permission checks of their own
-    cli/                the command line: parses arguments, finds the object (select.py), performs the action
+    cli/                the command line: parses arguments, finds the object (select.py), performs the action,
+                        prints lists (listing.py)
   tests/                against fixture homes, a fake /proc, a stand-in for the other machine and for claude
 ```
 
-**The command line.** Reading commands are at the top level (`ls`, `show`, `summary`, `whoami`, `permissions`, `doctor`, `audit`, `check`), with `preferences`, `setup`, `help` (as `-h`) and `version` (as `-v`); `log`, which reads back claudestra's record of what it did; `autostart`, which the login unit runs; and `uninstall`. Everything else is in a group: `session` (start, stop, restart, type, peek, wait, attach, compact, spawn, rename, move), `staff` (list, with `--tree` for who manages whom; hire, dismiss, describe), `trash` (list, add, restore, purge), `machine` (list, send, fetch), `install` (guard, remote-control, login-unit, completion) and `trust`. A bare group shows its help, as `-h` does; a bare command that gets and sets, such as `preferences`, gets. Every reading command takes `--json`, since sessions are its main readers.
+**The command line.** Reading commands are at the top level (`show`, `summary`, `whoami`, `permissions`, `doctor`, `audit`, `check`), with `preferences`, `setup`, `help` (as `-h`) and `version` (as `-v`); `log`, which reads back claudestra's record of what it did; `autostart`, which the login unit runs; and `uninstall`. Everything else is in a group: `session` (list, which lists every session on this machine; start, stop, restart, type, peek, wait, attach, compact, spawn, rename, move), `staff` (list, which lists the staff on every machine, filtered by scope and by where each lives, with `--tree` for who manages whom; hire, dismiss, describe; `local-folder` assign, remove and list-missing, for staffers that live on another machine), `trash` (list, add, restore, purge), `machine` (list, send, fetch), `install` (guard, remote-control, login-unit, completion) and `trust`. A bare group shows its help, as `-h` does; a bare command that gets and sets, such as `preferences`, gets. Every reading command takes `--json`, since sessions are its main readers.
 
 **Uninstalling.** `claudestra uninstall`, the user's, takes out what claudestra put on the machine outside its package, so removing it leaves nothing broken behind: the guard (whose hook would otherwise name a Python that is gone), shell completion and the login unit. It keeps the config folder and the Remote Control setting, and says to disable the plugin, which would otherwise put the guard back, and to remove the CLI with `uv tool uninstall`. Bare `claudestra` at a terminal is a menu of every command, a group's by its full name.
 
-**Selecting what a command acts on** goes through one module, `cli/select.py`. Given on the command line, a session, staffer, trash entry, machine, folder or choice is used as given. Left out at a terminal, it is picked from a list, which the command narrows by saying what it allows (`staff=False`, `running=False`, `scoped=True`, a staffer `on` a machine). Left out with no terminal, which is how a session runs claudestra, the command refuses and names what to give. So every command serves a person and a session alike.
+**Selecting what a command acts on** goes through one module, `cli/select.py`. Given on the command line, a session, staffer, trash entry, machine, folder or choice is used as given. Left out at a terminal, it is picked from a table with a header row, which the command narrows by saying what it allows (`staff=False`, `running=False`, `scoped=True`, a staffer `on` a machine, and for `trust autostart` only the staffers `add` or `remove` could change). Left out with no terminal, which is how a session runs claudestra, the command refuses and names what to give. So every command serves a person and a session alike.
+
+**Lists** print through one module, `cli/listing.py`. A command that lists things declares a `Listing`, its columns and the JSON record each row becomes, and hands it the rows: a table at a terminal, JSON with `--json`. The cells that recur, such as a session's ID, a scope, a machine or a staffer's tags, are made there, so they read and are coloured the same in every list and in the pickers, which use the same cells.
 
 **Completion.** `claudestra install completion` installs completion for `claudestra` and `clost` in the user's shell (zsh, bash or fish): the script in a file of its own, and for zsh and bash one marked line in the shell's startup file that sources it. It only adds completion, so anyone may run it, and the plugin does when a session starts. `--print` prints the script instead.
 

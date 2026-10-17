@@ -96,9 +96,8 @@ def test_reading_actions(home: Home):
     home.staff_file(C, "far", {HERE: "~/x"})
     Context(home.home, home.config)
     listing = List().perform()
-    assert [s.id for s in listing.sessions] == [A] and [a.name for a in listing.elsewhere] == ["far"]
+    assert [s.id for s in listing.sessions] == [A, B]  # every session here, staffers first
     assert listing.total == 2 and listing.running == 0
-    assert {s.id for s in List(show_all=True).perform().sessions} == {A, B}
     with pytest.raises(Refused, match="no such report"):
         Audit(["nonsense"]).perform()
     assert set(Audit(["orphans"]).perform()) == {"orphans"}

@@ -89,11 +89,10 @@ def autostart(
 ) -> None:
     """Add a staffer to a machine's login list, or remove it."""
     add = _change(change)
-    _do(
-        TrustAutostart(STAFFER.where(on=machine or Context.current().machine.hostname).get(session), add, machine),
-        yes,
-        dry,
-    )
+    host = machine or Context.current().machine.hostname
+    listed = set(Context.current().trust.autostart(host))  # add offers those not yet listed, remove those listed
+    pick = STAFFER.where(on=host, keep=lambda sid: (sid in listed) != add)
+    _do(TrustAutostart(pick.get(session), add, machine), yes, dry)
 
 
 @trust_app.command("protect")

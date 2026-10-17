@@ -140,7 +140,7 @@ def test_restricted_mode_is_announced_first_on_stderr(home: Home, monkeypatch: p
     (sessions / "30.json").write_text(json.dumps({"pid": 30, "sessionId": A, "procStart": "1030", "name": "mgr"}))
     claude = ClaudeProc(Proc(30, 1, "1030", "claude", "/usr/bin/claude"), None, 2)
     monkeypatch.setattr(context_mod, "claude_chain", lambda *a, **k: [claude])
-    r = run(app, [*home.cli_args(), "ls", "--all", "--json"])
+    r = run(app, [*home.cli_args(), "session", "list", "--json"])
     assert r.exit_code == 0
     assert r.stderr.splitlines()[0].startswith("restricted mode: a Claude process is in the chain")
     assert r.stderr.splitlines()[1].startswith("caller: a Claude process (pid 30)")
@@ -149,7 +149,7 @@ def test_restricted_mode_is_announced_first_on_stderr(home: Home, monkeypatch: p
 
 def test_no_banner_without_claude(home: Home, as_him):
     home.transcript(A, home.folder("w"))
-    r = run(app, [*home.cli_args(), "ls", "--all"])
+    r = run(app, [*home.cli_args(), "session", "list"])
     assert "restricted mode" not in r.output
 
 
@@ -214,7 +214,7 @@ def test_every_reading_command_prints(home: Home, as_him):
         (["audit", "names"], "names"),
         (["permissions"], "start"),
         (["trust", "show"], "machines:"),
-        (["ls"], "one"),
+        (["session", "list"], "one"),
     ):
         r = run(app, [*home.cli_args(), *args])
         assert r.exit_code in (0, 1) and expect in r.output, (args, r.output)
@@ -251,7 +251,7 @@ def test_every_reading_command_prints_json(home: Home, as_him):
     aged(home.transcript(A, home.folder("w")))
     home.staff_file(A, "one", {HERE: "~/w"})
     for args in (
-        ["ls"], ["show", A], ["summary", A], ["whoami"], ["check"], ["audit"], ["doctor", "versions"],
+        ["session", "list"], ["show", A], ["summary", A], ["whoami"], ["check"], ["audit"], ["doctor", "versions"],
         ["permissions"], ["preferences"], ["log"], ["staff", "list"], ["trash", "list"], ["machine", "list"],
     ):  # fmt: skip
         r = run(app, [*home.cli_args(), *args, "--json"])

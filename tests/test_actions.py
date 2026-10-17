@@ -386,6 +386,7 @@ def test_every_changing_action_declares_who_may_take_it():
         "attach", "compact", "completion", "describe", "dismiss", "fetch", "fix the audit", "guard", "hire", "install", "move", "purge", "rename",
         "fix-name", "preferences", "remote-control", "restore", "send", "spawn", "uninstall", "start", "stop", "trash", "type",
         "trust grant", "trust revoke", "trust autostart", "trust protect", "trust machine",
+        "local-folder assign", "local-folder remove",
     }  # fmt: skip
     # the audit's fixes are each authorized as their own verb; the guard and completion only add
     assert all(R[v] for v in R if v not in ("fix the audit", "guard", "completion"))
@@ -687,3 +688,45 @@ def test_a_dotdot_does_not_carry_a_managers_spawn_or_hire_out_of_its_folder(home
     with pytest.raises(Refused, match="its relation to it is none"):
         Hire(Session(A), "one", home.home / "w" / ".." / "other", "Works on other.").perform()
     assert not (home.config / "staff.d" / f"{A}.yaml").exists()
+
+
+# --- local folders, for staffers that live on another machine -------------------------------------
+
+
+def test_a_local_folder_is_assigned_and_removed_only_for_a_staffer_that_lives_elsewhere(home: Home):
+    """The user's and a device scope's; refused for a staffer that lives here, and remove keeps the far folder."""
+    home.transcript(A, home.folder("w"))
+    home.staff_file(A, "here", {HERE: "~/w"})
+    home.staff_file(B, "far", {"FAR": "~/x"})
+    home.staff_file(C, "dev", {HERE: "~/"})
+    c = home.acting(HUMAN, {C: "device"})
+    v = home.folder("v")
+    with pytest.raises(Refused, match="lives on"):
+        Staffer(A).assign_local_folder(v).perform()
+    with pytest.raises(Refused, match="has no folder on"):
+        Staffer(B).remove_local_folder().perform()
+    with pytest.raises(Refused, match="not a folder"):
+        Staffer(B).assign_local_folder(home.home / "nowhere").perform()
+    Staffer(B).assign_local_folder(v).perform()
+    assert Staffer(B).staff_file.folder == v and Staffer(B).staff_file.folders["FAR"] == "~/x"
+    with pytest.raises(Refused, match="already has"):
+        Staffer(B).assign_local_folder(v).perform()
+    c._subject = Caller("folder", A, "f", 1, home.folder("w"))
+    with pytest.raises(Refused, match="may not local-folder remove"):
+        Staffer(B).remove_local_folder().perform()
+    c._subject = Caller("device", C, "d", 1)
+    Staffer(B).remove_local_folder().perform()
+    assert Staffer(B).staff_file.folder is None and Staffer(B).staff_file.folders == {"FAR": "~/x"}
+    home.staff_file(D, "only-here", {HERE: "~/v"})
+    c.refresh()
+    with pytest.raises(Refused, match="would be left with none"):
+        Staffer(D).remove_local_folder().perform()
+
+
+def test_an_assigned_local_folder_is_undone(home: Home):
+    home.staff_file(B, "far", {"FAR": "~/x"})
+    home.acting(HUMAN)
+    action = Staffer(B).assign_local_folder(home.folder("v"))
+    action.perform()
+    action.undo()
+    assert Staffer(B).staff_file.folders == {"FAR": "~/x"}

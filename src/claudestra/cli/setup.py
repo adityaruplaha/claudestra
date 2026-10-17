@@ -25,7 +25,7 @@ from ..caller import Refused
 from ..ops import completion, guard, remote_control
 from ..ops import preferences as prefs
 from ..trust import machine_problem
-from . import select
+from . import listing, select
 from .base import Ctx, app, refusing
 from .ui import AsJson, Dry, Yes, err, fail, go_ahead, interactive, lines, out
 
@@ -157,9 +157,9 @@ def setup(ctx: typer.Context, dry: Dry = False) -> None:
 def _device_manager(c: Ctx, dry: bool) -> None:
     """A device-scope manager for this machine: a staffer here given device scope, or a new one spawned."""
     here = [sf for sf in c.trust.staff if sf.folder is not None and c.trust.scope(sf.session) is None]
-    rows = [("new", f"spawn a new session in {c.fs.home}")]
-    rows += [(sf.session, f"{sf.name} ({sf.session[:8]})") for sf in here]
-    rows += [("", "not now")]
+    rows = [("new", (listing.name("new"), listing.dim(f"spawn a new session in {c.fs.home}")))]
+    rows += [(sf.session, (listing.name(sf.name), listing.short_id(sf.session))) for sf in here]
+    rows += [("", (listing.dim("not now"), ""))]
     got = select.pick("Which session manages this machine?", rows, "a session") or None
     if got is None:
         return

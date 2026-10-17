@@ -250,3 +250,13 @@ class Staffer(Session):
         from .actions.describe import Describe
 
         return Describe(self, description)
+
+    def assign_local_folder(self, folder: Path):
+        from .actions.assign_local_folder import AssignLocalFolder
+
+        return AssignLocalFolder(self, folder)
+
+    def remove_local_folder(self):
+        from .actions.remove_local_folder import RemoveLocalFolder
+
+        return RemoveLocalFolder(self)

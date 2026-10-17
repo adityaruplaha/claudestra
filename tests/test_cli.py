@@ -10,7 +10,7 @@ from claudestra.caller import Caller
 from claudestra.cli import app, ui
 from claudestra.cli import base as app_mod
 
-from conftest import A, Answer, B, Home, aged, run
+from conftest import HERE, A, Answer, B, Home, aged, run
 
 
 def test_no_terminal_never_prompts(home: Home, monkeypatch: pytest.MonkeyPatch):
@@ -26,7 +26,7 @@ def test_picker_fills_a_missing_session(home: Home, at_terminal, monkeypatch: py
     seen = {}
 
     def select(message, choices, **kw):
-        seen["values"] = [c.value for c in choices]
+        seen["values"] = [c.value for c in choices if not isinstance(c, ui.questionary.Separator)]
         return Answer(B)
 
     monkeypatch.setattr(ui.questionary, "select", select)
@@ -46,14 +46,15 @@ def test_menu_lists_commands_and_runs_the_chosen_one(home: Home, at_terminal, mo
     monkeypatch.setattr(app_mod.questionary, "select", select)
     r = run(app, home.cli_args())
     assert "two-homes" in r.output and {
-        "ls",
+        "session list",
+        "staff list",
         "session move",
         "trash add",
         "machine send",
         "trash purge",
         "setup",
     } <= set(offered["names"])
-    assert "list" not in offered["names"]  # the hidden alias is not offered twice
+    assert "session ls" not in offered["names"]  # the hidden alias is not offered twice
     monkeypatch.setattr(app_mod.questionary, "select", lambda *a, **k: Answer("trash list"))
     assert run(app, home.cli_args()).exit_code == 0  # a group's command, reached through the menu
 
@@ -97,15 +98,17 @@ def test_preamble_refuses_a_machine_not_in_trust(home: Home):
 def test_names_print_as_written_and_lines_do_not_wrap(home: Home):
     home.transcript(A, home.folder("a-very-long-folder-name/that-goes/on-and-on/and-on-and-on"))
     home.staff_file(A, "[my-stack] manager", {"anyhost": "~/w"})
-    r = run(app, [*home.cli_args(), "ls", "--all"])
+    r = run(app, [*home.cli_args(), "session", "list"])
     assert "[my-stack] manager" in r.output
     assert any("a-very-long-folder-name/that-goes/on-and-on/and-on-and-on" in line for line in r.output.splitlines())
 
 
 def test_list_is_ls(home: Home):
     home.transcript(A, home.folder("w"))
-    a = run(app, [*home.cli_args(), "ls", "--all", "--json"]).output
-    assert a == run(app, [*home.cli_args(), "list", "--all", "--json"]).output and A in a
+    home.staff_file(A, "one", {HERE: "~/w"})
+    for group in ("session", "staff"):
+        a = run(app, [*home.cli_args(), group, "ls", "--json"]).output
+        assert a == run(app, [*home.cli_args(), group, "list", "--json"]).output and A in a
 
 
 def test_completion_prints_and_installs_nothing():

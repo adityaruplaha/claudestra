@@ -3,7 +3,6 @@ place one at a time: `install login-unit`, `guard`, `remote-control` and `comple
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -15,7 +14,7 @@ from ..caller import Refused
 from ..ops import completion as completion_ops
 from ..ops import guard as guard_ops
 from ..portable import given_folder
-from . import select, ui
+from . import listing, select, ui
 from .base import FS_CHECKS, Ctx, install_app, machine_app, refusing
 from .ui import (
     AsJson,
@@ -36,34 +35,29 @@ FETCHABLE = select.Staffers(help="The session's full ID, or a staffer that works
 @machine_app.command("list")
 def machine_list(ctx: typer.Context, as_json: AsJson = False) -> None:
     """The machines trust.yaml describes: home, ssh address, and how many staffers start at login."""
-    from rich.table import Table
-
     c: Ctx = ctx.obj
-    if as_json:
-        here = c.machine.hostname.lower()
-        print(
-            json.dumps(
-                [
-                    {
-                        "machine": m.hostname,
-                        "this_one": m.hostname.lower() == here,
-                        "home": str(m.home),
-                        "ssh": m.ssh,
-                        "autostart": m.autostart,
-                    }
-                    for m in c.machines.values()
-                ],
-                indent=2,
-            )
-        )
-        return
-    t = Table(box=None, header_style="bold", pad_edge=False)
-    for col in ("machine", "home", "ssh", "autostart"):
-        t.add_column(col, no_wrap=True)
-    for m in c.machines.values():
-        here = " (this one)" if m.hostname.lower() == c.machine.hostname.lower() else ""
-        t.add_row(m.hostname + here, str(m.home), m.ssh or "-", str(len(m.autostart)))
-    out.print(t)
+    here = c.machine.hostname
+    listing.Listing(
+        [
+            listing.Column(
+                "machine",
+                lambda m: (
+                    listing.machine(m.hostname, here)
+                    + (Text(" (this one)", style="dim") if m.hostname.lower() == here.lower() else Text(""))
+                ),
+            ),
+            listing.Column("home", lambda m: str(m.home)),
+            listing.Column("ssh", lambda m: listing.dim(m.ssh) if not m.ssh else m.ssh),
+            listing.Column("autostart", lambda m: str(len(m.autostart))),
+        ],
+        lambda m: {
+            "machine": m.hostname,
+            "this_one": m.hostname.lower() == here.lower(),
+            "home": str(m.home),
+            "ssh": m.ssh,
+            "autostart": m.autostart,
+        },
+    ).print(c.machines.values(), as_json)
 
 
 @machine_app.command()

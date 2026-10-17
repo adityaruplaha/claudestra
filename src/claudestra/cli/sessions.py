@@ -4,18 +4,16 @@ plans again from a fresh read of the disk and refuses if anything changed while 
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
 
 import typer
-from rich.table import Table
 from rich.text import Text
 
 from ..actions.base import Transaction
 from ..ops import trash as trash_ops
 from ..portable import given_folder
-from . import select
+from . import listing, select
 from .base import FS_CHECKS, Ctx, refusing, session_app, trash_app
 from .ui import (
     AsJson,
@@ -94,15 +92,15 @@ def rename(
 def trash_list(ctx: typer.Context, as_json: AsJson = False) -> None:
     """The trash: each entry and the title of the session in it."""
     c: Ctx = ctx.obj
-    if as_json:
-        print(json.dumps([{"entry": e.name, "manifest": mf} for e, mf in trash_ops.entries(c.fs)], indent=2))
-        return
-    t = Table(box=None, header_style="bold", pad_edge=False)
-    t.add_column("entry", style="cyan", no_wrap=True)
-    t.add_column("title")
-    for e, mf in trash_ops.entries(c.fs):
-        t.add_row(e.name, (mf.get("title") or "-") if mf else Text("(no manifest)", style="red"))
-    out.print(t)
+    listing.Listing(
+        [
+            listing.Column("entry", lambda em: Text(em[0].name, style="cyan")),
+            listing.Column(
+                "title", lambda em: (em[1].get("title") or "-") if em[1] else Text("(no manifest)", style="red")
+            ),
+        ],
+        lambda em: {"entry": em[0].name, "manifest": em[1]},
+    ).print(trash_ops.entries(c.fs), as_json)
 
 
 @trash_app.command("add")

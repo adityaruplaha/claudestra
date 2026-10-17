@@ -68,7 +68,7 @@ def staffed(home: Home, as_him):
 def test_staff_list_as_a_table_a_tree_and_json(home: Home, staffed):
     r = run(app, [*home.cli_args(), "staff", "list"])
     assert r.exit_code == 0, r.output
-    assert "(not on this machine)" in r.output and "folder" in r.output and "device" in r.output
+    assert "lives on" in r.output and "folder" in r.output and "device" in r.output
     r = run(app, [*home.cli_args(), "staff", "list", "--tree"])
     assert r.exit_code == 0, r.output
     lines = r.output.splitlines()
@@ -147,3 +147,69 @@ def test_summary_counts_what_arrived_from_elsewhere(home: Home):
     assert s.typed == ["do it"] and s.last_reply == "done."
     assert s.relayed["summary"] == 1 and s.relayed["meta"] == 1 and sum(s.relayed.values()) >= 3
     assert "tool_result" not in s.relayed
+
+
+# --- staffers that live on another machine ------------------------------------------------------------
+
+
+def test_staff_list_filters_and_local_folders(home: Home, as_him):
+    """staff list shows the staff on every machine, filtered by scope and residency; list-missing those that live
+    elsewhere with no folder here; local-folder assign and remove give one a folder here and take it away."""
+    home.transcript(A, home.folder("w"))
+    home.staff_file(A, "resident", {HERE: "~/w"})
+    home.staff_file(B, "far-only", {"FAR": "~/x"})
+    home.staff_file(C, "visitor", {"FAR": "~/x", HERE: "~/w"})
+    home.trust(
+        (home.config / "trust.yaml").read_text() + f"sessions:\n  {B}:\n    scope: folder\n  {A}:\n    scope: device\n"
+    )
+
+    def names(*args: str) -> list[str]:
+        r = run(app, [*home.cli_args(), "staff", "list", *args, "--json"])
+        assert r.exit_code == 0, r.output
+        return sorted(x["name"] for x in json.loads(r.output))
+
+    assert names() == ["far-only", "resident", "visitor"]
+    assert names("--resident") == ["resident"]
+    assert names("--non-resident") == ["far-only", "visitor"]
+    assert names("--visitors") == ["visitor"]
+    assert names("--resident", "--visitors") == ["resident", "visitor"]
+    assert names("--scope", "folder") == ["far-only"]
+    assert names("--scope", "device,folder") == ["far-only", "resident"]
+    assert names("--scope", "folder", "--resident") == []
+    assert run(app, [*home.cli_args(), "staff", "list", "--scope", "manager"]).exit_code != 0
+    r = run(app, [*home.cli_args(), "staff", "list"])
+    assert r.output.count("FAR") == 2 and HERE in r.output
+    r = run(app, [*home.cli_args(), "staff", "local-folder", "list-missing", "--json"])
+    assert [x["name"] for x in json.loads(r.output)] == ["far-only"]
+    r = run(app, [*home.cli_args(), "staff", "local-folder", "assign", "far-only", str(home.folder("v")), "-y"])
+    assert r.exit_code == 0 and "assigned" in r.output
+    assert names("--visitors") == ["far-only", "visitor"]
+    r = run(app, [*home.cli_args(), "staff", "local-folder", "list-missing"])
+    assert "has a folder here" in r.output
+    r = run(app, [*home.cli_args(), "staff", "local-folder", "remove", "far-only", "-y"])
+    assert r.exit_code == 0 and "removed" in r.output
+
+
+def test_autostart_offers_to_remove_only_those_listed(home: Home, as_him, at_terminal, monkeypatch):
+    from claudestra.cli import trust as trust_cli
+
+    home.transcript(A, home.folder("w"))
+    home.staff_file(A, "one", {HERE: "~/w"})
+    home.staff_file(B, "two", {HERE: "~/w"})
+    home.trust(f"machines:\n  {HERE}:\n    home: {home.home}\n    machine_id: {portable_id()}\n    autostart: [{A}]\n")
+    seen = {}
+
+    def get(self, token=None):
+        seen[self] = [v for v, _ in self.choices()]
+        raise typer.Exit(0)
+
+    monkeypatch.setattr(trust_cli.STAFFER.__class__, "get", get)
+    run(app, [*home.cli_args(), "trust", "autostart", "remove"])
+    run(app, [*home.cli_args(), "trust", "autostart", "add"])
+    assert sorted(seen.values()) == sorted([[A], [B]])
+
+
+def portable_id() -> str:
+    from claudestra import portable
+
+    return portable.machine_id()
