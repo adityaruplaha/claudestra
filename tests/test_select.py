@@ -108,3 +108,11 @@ def test_a_picker_is_a_coloured_table_that_filters(home: Home, at_terminal, monk
     assert "one" in rows[1].title.lower() and "elsewhere" in rows[0].title.lower()
     styles = {t.strip(): st for r in rows for st, t in r.title}
     assert "ansicyan" in styles[A[:8]] and "magenta" in styles["device"] and "bold" in styles["one"]
+
+
+def test_a_staffer_that_lives_elsewhere_is_named_by_its_id_prefix(home: Home):
+    home.staff_file(B, "far", {"elsewhere": "~/w"})
+    home.acting(HUMAN)
+    assert select.Staffers().get(B[:8]) == B
+    with pytest.raises(typer.Exit):
+        select.Staffers().get(B[:7])  # shorter than a prefix may be

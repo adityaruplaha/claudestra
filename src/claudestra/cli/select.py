@@ -268,8 +268,15 @@ class Staffers(Selector):
     def resolve(self, token: str) -> str:
         if UUID.match(token):
             return token
-        named = _context().trust.named(token)
-        return named.session if named else _resolve_session(token).id
+        t = _context().trust
+        if named := t.named(token):
+            return named.session
+        # An ID prefix, matched against the staff too, since a staffer that lives on another machine has no
+        # session here to match.
+        by_prefix = {sf.session for sf in t.staff if len(token) >= 8 and sf.session.startswith(token)}
+        if len(by_prefix) == 1:
+            return by_prefix.pop()
+        return _resolve_session(token).id
 
 
 class TrashEntries(Selector):
