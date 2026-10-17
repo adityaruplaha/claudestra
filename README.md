@@ -56,7 +56,7 @@ Every argument that names a session, staffer, trash entry, machine, folder or ch
 | `clost summary SESSION` | Whether a session is finished: the prompts you typed, what other sessions relayed, its last reply.          |
 | `clost whoami`          | Who claudestra takes you to be, your scope, and who manages you.                                            |
 | `clost permissions`     | Who may take each action.                                                                                   |
-| `clost doctor`          | Checks every fact about Claude Code's files that claudestra relies on, and its own setup.                   |
+| `clost doctor`          | Checks every fact about Claude Code's files that claudestra relies on, and its own setup. Its `versions` warning, "unchecked versions", is expected after a Claude Code update and usually harmless. |
 | `clost audit`           | What needs attention: forks, subagent copies, links, orphans, stale state. `--fix` fixes what is safe to. |
 | `clost check`           | `trust.yaml` and the staff files against this machine.                                                    |
 | `clost log [SESSION]`   | What claudestra has done here: who did what to which session, and when.                                     |

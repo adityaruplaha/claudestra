@@ -147,7 +147,8 @@ def check_versions(fs: ClaudeFS, deep: bool) -> Result:
     return Result(
         "versions",
         WARN if new else PASS,
-        f"unchecked versions {', '.join(new)}: read every other result with that in mind"
+        f"unchecked versions {', '.join(new)}: expected after a Claude Code update and usually harmless, since the "
+        "checks that matter fail on their own if a fact claudestra relies on has changed"
         if new
         else f"running {', '.join(sorted(vs))}",
     )
