@@ -86,6 +86,29 @@ def test_a_settings_file_it_cannot_read_is_left_alone(home: Home, as_him):
     assert r.exit_code == 1 and "cannot read" in r.output and settings(home).read_text() == "{ not json"
 
 
+def test_the_hook_counts_under_either_name_of_its_python(home: Home, as_him, tmp_path: Path, monkeypatch):
+    """A venv's python3 is its python; a reinstall can switch which one sys.executable names. doctor accepts
+    either, and install guard writes the plain name, replacing the entry rather than adding a second."""
+    bin_ = tmp_path / "venv" / "bin"
+    bin_.mkdir(parents=True)
+    (bin_ / "python").symlink_to(sys.executable)
+    (bin_ / "python3").symlink_to("python")
+    monkeypatch.setattr(guard.sys, "executable", str(bin_ / "python3"))
+    fs = home.setup()[0]
+    (home.config / "guard.py").write_text(guard.GUARD_SOURCE)
+    old = {
+        "matcher": guard.MATCHER,
+        "hooks": [{"type": "command", "command": f"{bin_ / 'python3'} -I -S {home.config.absolute() / 'guard.py'}"}],
+    }
+    settings(home).write_text(
+        json.dumps({"permissions": {"deny": guard.rules(home.config)}, "hooks": {"PreToolUse": [old]}})
+    )
+    assert guard.missing(fs, home.config) == []
+    assert guard.hook_command(home.config).startswith(str(bin_ / "python") + " ")
+    assert run(app, [*home.cli_args(), "install", "guard", "-y"]).exit_code == 0
+    assert json.loads(settings(home).read_text())["hooks"]["PreToolUse"] == [guard.hook_entry(home.config)]
+
+
 def test_managed_prints_a_drop_in_and_doctor_counts_it(home: Home, as_him, tmp_path: Path):
     before = settings(home).read_text()
     r = run(app, [*home.cli_args(), "install", "guard", "--managed"])

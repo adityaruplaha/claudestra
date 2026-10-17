@@ -116,9 +116,35 @@ def guard_path(config: Path) -> Path:
     return config.absolute() / GUARD
 
 
+def _python() -> str:
+    """This Python, by the name that stays put: a venv's `python`, which `python3` beside it also is. Which of the
+    two `sys.executable` names depends on how the venv was made, and a reinstall can change it."""
+    exe = Path(sys.executable)
+    plain = exe.with_name("python")
+    return str(plain) if exe.name != "python" and plain.exists() and plain.resolve() == exe.resolve() else str(exe)
+
+
 def hook_command(config: Path) -> str:
     """The hook as the settings run it: this Python, isolated and without site, so it starts quickly."""
-    return shlex.join([sys.executable, "-I", "-S", str(guard_path(config))])
+    return shlex.join([_python(), "-I", "-S", str(guard_path(config))])
+
+
+def _is_ours(entry, config: Path) -> bool:
+    """A PreToolUse entry that runs the guard as claudestra writes it, with this Python by any of its names."""
+    if not isinstance(entry, dict) or entry.get("matcher") != MATCHER or len(entry.get("hooks") or []) != 1:
+        return False
+    hook = entry["hooks"][0]
+    if not isinstance(hook, dict) or hook.get("type") != "command" or not isinstance(hook.get("command"), str):
+        return False
+    try:
+        argv = shlex.split(hook["command"])
+    except ValueError:
+        return False
+    return (
+        len(argv) == 4
+        and argv[1:] == ["-I", "-S", str(guard_path(config))]
+        and Path(argv[0]).resolve() == Path(sys.executable).resolve()
+    )
 
 
 def hook_entry(config: Path) -> dict:
@@ -231,7 +257,7 @@ def missing(fs: ClaudeFS, config: Path) -> list[str]:
         perms, hooks = data.get("permissions"), data.get("hooks")
         if isinstance(perms, dict) and isinstance(perms.get("deny"), list):
             have.update(r for r in perms["deny"] if isinstance(r, str))
-        if isinstance(hooks, dict) and hook_entry(config) in (hooks.get("PreToolUse") or []):
+        if isinstance(hooks, dict) and any(_is_ours(e, config) for e in hooks.get("PreToolUse") or []):
             hooked = True
     out = [r for r in rules(config) if r not in have]
     if not hooked:
