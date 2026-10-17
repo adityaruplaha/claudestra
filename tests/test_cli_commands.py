@@ -14,7 +14,7 @@ from claudestra import portable
 from claudestra.caller import Caller, Refused
 from claudestra.cli import app, ui
 from claudestra.context import Context
-from claudestra.ops import transfer
+from claudestra.ops import preferences, transfer
 from claudestra.ops import trash as trash_ops
 from claudestra.proctree import ClaudeProc, Proc
 from claudestra.session import Session
@@ -185,6 +185,17 @@ def test_send_and_fetch_as_actions(home: Home, tmp_path: Path, monkeypatch: pyte
     c._subject = HUMAN
     c.fetch(A, HERE, str(far_home / "dest"), home.folder("work")).perform()
     assert Session(A).here
+    f.write_text(f.read_text() + f"sessions:\n  {A}:\n    scope: device\n")  # a device scope stays on its machine
+    c.refresh()
+    with pytest.raises(Refused, match="bound to its own machine"):
+        Session(A).send(HERE, str(far_home / "dest")).perform()
+    with pytest.raises(Refused, match="bound to its own machine"):
+        c.fetch(A, HERE, str(far_home / "dest"), home.folder("work")).perform()
+    preferences.save(home.config, "device-scopes-machine-bound", "no")
+    c.refresh()
+    plans = []
+    Session(A).send(HERE, str(far_home / "dest")).perform(lambda plan: plans.append(plan) or False)
+    assert plans[0][0].startswith("warning: a device scope")
 
 
 def test_send_on_the_command_line_needs_the_full_id_typed(

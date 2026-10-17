@@ -98,6 +98,7 @@ Every reading command takes `--json`.
 | :----------------------- | :--------------------------------------------------------------------------------------------------------- |
 | `finished-transcripts` | Once a session's work has gone out: `keep` its conversation, treat it as `disposable`, or `ask`.     |
 | `fan-out-model`        | When a session runs many subagents: the `same` model, a `cheaper` one for a heavy fan-out, or `ask`. |
+| `device-scopes-machine-bound` | `yes` (the default): a device scope is never moved to another machine or given a folder on one. `no`: allowed, with a warning. |
 | `update-reminders`     | `yes` (the default) or `no`: a reminder at your terminal when a newer release is out.                  |
 
 `clost help` is `-h`, and `clost version` is `-v`.

@@ -41,6 +41,14 @@ PREFERENCES: dict[str, Preference] = {
             "say the projection and the choice before launching anything large",
         },
     ),
+    "device-scopes-machine-bound": Preference(
+        "Is a device-scope session bound to its own machine?",
+        {
+            "yes": "never move it to another machine, or give it a folder on one; claudestra refuses",
+            "no": "allow it, with a warning",
+        },
+        unset="yes",
+    ),
     "update-reminders": Preference(
         "Should claudestra remind you, at your terminal, when a newer release is out?",
         {"yes": "check at most once a day, and say so when a newer release is out", "no": "never check"},
@@ -107,3 +115,14 @@ def save(config: Path, key: str, value: str) -> None:
     have[key] = value
     header = "# The user's preferences for claudestra; written by `claudestra setup` and `claudestra preferences`.\n"
     atomic_write_text(path(config), header + yaml.safe_dump(have, sort_keys=False))
+
+
+def device_scopes_bound(config: Path) -> bool:
+    """Whether a device scope stays on its own machine: yes until the user says no."""
+    try:
+        return load(config).get("device-scopes-machine-bound") != "no"
+    except Refused:
+        return True
+
+
+UNBIND = "`claudestra preferences device-scopes-machine-bound no` allows it, with a warning"

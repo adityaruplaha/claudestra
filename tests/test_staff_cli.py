@@ -179,11 +179,24 @@ def test_staff_list_filters_and_local_folders(home: Home, as_him):
     assert run(app, [*home.cli_args(), "staff", "list", "--scope", "manager"]).exit_code != 0
     r = run(app, [*home.cli_args(), "staff", "list"])
     assert r.output.count("FAR") == 2 and HERE in r.output
+    far = next(line for line in r.output.splitlines() if line.startswith("far-only"))
+    assert "~/x" not in far  # only a folder on this machine is shown, never one on the machine it lives on
     r = run(app, [*home.cli_args(), "staff", "local-folder", "list-missing", "--json"])
     assert [x["name"] for x in json.loads(r.output)] == ["far-only"]
+    home.staff_file(D, "far-device", {"FAR": "~/"})  # a device scope never has a folder on another machine
+    home.trust((home.config / "trust.yaml").read_text() + f"  {D}:\n    scope: device\n")
+    r = run(app, [*home.cli_args(), "staff", "local-folder", "list-missing", "--json"])
+    assert [x["name"] for x in json.loads(r.output)] == ["far-only"]
+    r = run(app, [*home.cli_args(), "staff", "local-folder", "assign", "far-device", str(home.folder("v")), "-y"])
+    assert r.exit_code == 1 and "is a device scope" in r.output and "device-scopes-machine-bound no" in r.output
+    assert run(app, [*home.cli_args(), "preferences", "device-scopes-machine-bound", "no"]).exit_code == 0
+    r = run(app, [*home.cli_args(), "staff", "local-folder", "list-missing", "--json"])
+    assert [x["name"] for x in json.loads(r.output)] == ["far-device", "far-only"]  # no longer bound: listed
+    r = run(app, [*home.cli_args(), "staff", "local-folder", "assign", "far-device", str(home.folder("v")), "-y"])
+    assert r.exit_code == 0 and "warning: 'far-device' is a device scope" in r.output
     r = run(app, [*home.cli_args(), "staff", "local-folder", "assign", "far-only", str(home.folder("v")), "-y"])
     assert r.exit_code == 0 and "assigned" in r.output
-    assert names("--visitors") == ["far-only", "visitor"]
+    assert names("--visitors") == ["far-device", "far-only", "visitor"]
     r = run(app, [*home.cli_args(), "staff", "local-folder", "list-missing"])
     assert "has a folder here" in r.output
     r = run(app, [*home.cli_args(), "staff", "local-folder", "remove", "far-only", "-y"])

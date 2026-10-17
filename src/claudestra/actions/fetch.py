@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..caller import Refused
+from ..ops import preferences as prefs
 from ..ops import transfer
 from .base import Action
 from .permissions import Kinds
@@ -42,11 +43,17 @@ class Fetch(Action):
             self.copy_memory,
         )
 
+    def _device_scope(self) -> bool:
+        return self.context.trust.scope(self.object) == "device"
+
     def check(self) -> None:
+        if self._device_scope() and prefs.device_scopes_bound(self.context.trust.config):
+            raise Refused(f"{self.object} is a device scope, bound to its own machine ({prefs.UNBIND})")
         self.plan = self._fetch(dry=True)
 
     def describe(self) -> list[str]:
-        return self.plan.describe()
+        warn = ["warning: a device scope is moving to a machine it does not organise"] if self._device_scope() else []
+        return warn + self.plan.describe()
 
     def run(self) -> transfer.TransferPlan:
         return self._fetch(dry=False)

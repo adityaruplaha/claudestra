@@ -184,7 +184,7 @@ The relations, with D for a device scope:
 | local-folder assign | ✅ | | ✅ | ✅ | ✅ | ✅ | | |
 | local-folder remove | ✅ | | ✅ | ✅ | ✅ | ✅ | | |
 
-✅ allowed; ⚠️ allowed, with a caveat noted here; blank, refused. `fix-name` and `describe` also allow the staffer itself. For `hire` and `spawn`, the columns are the relation the subject would have to the session once hired or begun. `local-folder assign` and `remove` act only on a staffer whose session lives on another machine, and change only this machine's folder in its staff file.
+✅ allowed; ⚠️ allowed, with a caveat noted here; blank, refused. `fix-name` and `describe` also allow the staffer itself. For `hire` and `spawn`, the columns are the relation the subject would have to the session once hired or begun. `local-folder assign` and `remove` act only on a staffer whose session lives on another machine, and change only this machine's folder in its staff file; while the user's preference `device-scopes-machine-bound` holds (it does unless set to `no`), `assign` refuses a device scope, and `machine send` and `fetch` refuse to move one, since a device scope belongs to its own machine; set to `no`, each goes ahead with a warning.
 
 **Actions on anything else:**
 
@@ -243,6 +243,7 @@ claudestra's checks bind only sessions that go through claudestra, so the config
 | :--- | :--- | :--- |
 | `finished-transcripts` | `keep`; `disposable` once the session's work has gone out; `ask` | ask |
 | `fan-out-model` | `same` model as the session; a `cheaper` one for a heavy fan-out, after saying the projection; `ask` | ask |
+| `device-scopes-machine-bound` | `yes`: a device scope is never moved to another machine or given a folder on one; `no`: allowed, with a warning | yes |
 | `update-reminders` | `yes`, `no` | yes |
 
 **Update reminders.** At the user's terminal, at most once a day, claudestra asks the git remote it was installed from, as uv recorded it, for its newest release tag, and says so on stderr when it is newer than the one running. It never prompts for a password, says nothing when the remote cannot be asked, and is never shown to a session. An editable install, or one from a local folder, is a developer's, updated by pulling, and is never checked.

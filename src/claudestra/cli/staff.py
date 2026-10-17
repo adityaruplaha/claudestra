@@ -14,6 +14,7 @@ from rich.text import Text
 
 from ..caller import Refused
 from ..context import Context
+from ..ops import preferences as prefs
 from ..session import Session
 from . import listing, select
 from .base import Ctx, app, refusing, session_app, staff_app
@@ -53,8 +54,16 @@ STAFFER = select.Staffers()
 SPAWN_IN = select.Folder(message="Spawn it in which folder?", help="The folder it works in; browsed to at a terminal.")
 LINE = select.Text("Text:", "the line to type")
 DESCRIPTION = select.Text("Description:", "what it works on")
-ELSEWHERE = select.Staffers(  # local-folder: a staffer whose session lives on another machine
-    keep=lambda sid: sid not in Context.current().model.sessions,
+
+
+def _bound_device(sid: str) -> bool:
+    """A device scope, while the user's preference binds device scopes to their own machines."""
+    t = Context.current().trust
+    return t.scope(sid) == "device" and prefs.device_scopes_bound(t.config)
+
+
+ELSEWHERE = select.Staffers(  # local-folder assign: a staffer that lives on another machine, but no bound device scope
+    keep=lambda sid: sid not in Context.current().model.sessions and not _bound_device(sid),
     help="A staffer whose session lives on another machine; picked at a terminal.",
 )
 ELSEWHERE_WITH_FOLDER = select.Staffers(
@@ -365,7 +374,7 @@ def staff_list(
                 listing.Column("session", lambda sf: listing.short_id(sf.session)),
                 listing.Column("scope", lambda sf: listing.scope(t_.scope(sf.session))),
                 listing.Column("lives on", lambda sf: listing.machines(listing.lives_on(c, sf), host)),
-                listing.Column("folder", lambda sf: listing.staff_folder(c, sf), wrap=True),
+                listing.Column("folder here", lambda sf: listing.local_folder(c, sf), wrap=True),
             ],
             lambda sf: {
                 "name": sf.name,
@@ -501,18 +510,24 @@ def local_folder_remove(
 
 @local_folder_app.command("list-missing")
 def local_folder_list_missing(ctx: typer.Context, as_json: AsJson = False) -> None:
-    """The staffers that live on another machine and have no folder on this one."""
+    """The staffers that live on another machine and have no folder on this one; device scopes are left out while
+    they are bound to their own machines (`claudestra preferences device-scopes-machine-bound`)."""
     c: Ctx = ctx.obj
     host = c.machine.hostname
     missing = sorted(
-        (sf for sf in c.trust.staff if sf.folder is None and sf.session not in c.model.sessions), key=lambda f: f.name
+        (
+            sf
+            for sf in c.trust.staff
+            if sf.folder is None and sf.session not in c.model.sessions and not _bound_device(sf.session)
+        ),
+        key=lambda f: f.name,
     )
     listing.Listing(
         [
             listing.Column("name", lambda sf: listing.name(sf.name)),
             listing.Column("session", lambda sf: listing.short_id(sf.session)),
             listing.Column("lives on", lambda sf: listing.machines(listing.lives_on(c, sf), host)),
-            listing.Column("folder there", lambda sf: listing.staff_folder(c, sf), wrap=True),
+            listing.Column("folder there", lambda sf: listing.folder_there(c, sf), wrap=True),
         ],
         lambda sf: {"session": sf.session, "name": sf.name, "folders": sf.folders},
         empty="every staffer that lives on another machine has a folder here",

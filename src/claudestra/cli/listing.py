@@ -178,13 +178,17 @@ def lives_on(c, sf) -> list[str]:
     return [str(h) for h in sf.folders if str(h).lower() != c.machine.hostname.lower()]
 
 
-def staff_folder(c, sf) -> Cell:
-    """A staffer's folder here; for one with none here that lives on one other machine, its folder there, dimmed,
-    as its staff file writes it (~ is that machine's home)."""
+def local_folder(c, sf) -> Cell:
+    """A staffer's folder on this machine, or nothing: never its folder on another machine, which would read as
+    one here (his ruling, 2026-10-18); `lives on` says where it lives."""
     from ..trust import tilde
 
-    if sf.folder is not None:
-        return tilde(sf.folder, c.fs.home)
+    return tilde(sf.folder, c.fs.home) if sf.folder is not None else ""
+
+
+def folder_there(c, sf) -> Cell:
+    """A staffer's folder on the one other machine it lives on, dimmed, as its staff file writes it (~ is that
+    machine's home), for `list-missing`, whose column says it is the folder there."""
     on = lives_on(c, sf)
     there = [f for h, f in sf.folders.items() if len(on) == 1 and str(h) == on[0]]
     return dim(there[0] if there else None)

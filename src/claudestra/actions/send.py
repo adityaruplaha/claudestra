@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..caller import Refused
+from ..ops import preferences as prefs
 from ..ops import transfer
 from .base import SessionAction
 from .permissions import USER, Relations
@@ -46,11 +47,17 @@ class Send(SessionAction):
             self.copy_memory,
         )
 
+    def _device_scope(self) -> bool:
+        return self.context.trust.scope(self.session.id) == "device"
+
     def check(self) -> None:
+        if self._device_scope() and prefs.device_scopes_bound(self.context.trust.config):
+            raise Refused(f"{self.session.id} is a device scope, bound to its own machine ({prefs.UNBIND})")
         self.plan = self._send(dry=True)
 
     def describe(self) -> list[str]:
-        return self.plan.describe()
+        warn = ["warning: a device scope is moving to a machine it does not organise"] if self._device_scope() else []
+        return warn + self.plan.describe()
 
     def run(self) -> transfer.TransferPlan:
         return self._send(dry=False)
