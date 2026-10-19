@@ -50,21 +50,15 @@ class _Title(list):
         return "".join(text for _, text in self).lower()
 
 
-class _Header(str):
-    """The header row, a separator that every filter keeps, so the columns stay labelled as one types."""
-
-    def lower(self) -> _Header:
-        return self
-
-    def __contains__(self, _typed: object) -> bool:
-        return True
-
-
-def _table(columns: tuple[str, ...], choices: list[tuple[str, Row]], indent: int = 0) -> list:
-    """The choices as questionary shows them: a header, then each row in aligned, coloured columns."""
+def _table(
+    columns: tuple[str, ...], choices: list[tuple[str, Row]], hint: str, indent: int
+) -> tuple[list[questionary.Choice], str]:
+    """The choices as questionary shows them, in aligned, coloured columns, and the instruction, with the
+    columns' header under it, indented past the pointer and any tick box. The header is not a row: questionary
+    moves the pointer to the first row whenever one types, so a header row could be ticked or picked."""
     header, rows = listing.aligned(columns, [cells for _, cells in choices])
     items = [questionary.Choice(_Title(toks), value=v) for (v, _), toks in zip(choices, rows, strict=True)]
-    return ([questionary.Separator(_Header(" " * indent + header))] if columns else []) + items
+    return items, hint + ("\n" + " " * (3 + indent) + header if columns else "")
 
 
 def pick(message: str, choices: list[tuple[str, Row]], what: str, columns: tuple[str, ...] = ()) -> str:
@@ -72,12 +66,9 @@ def pick(message: str, choices: list[tuple[str, Row]], what: str, columns: tuple
     _need(what)
     if not choices:
         raise fail(f"there is no {what} to choose from")
+    items, instruction = _table(columns, choices, "(type to filter)", indent=0)
     answer = questionary.select(
-        message,
-        choices=_table(columns, choices),
-        use_search_filter=True,
-        use_jk_keys=False,
-        instruction="(type to filter)",
+        message, choices=items, use_search_filter=True, use_jk_keys=False, instruction=instruction
     ).ask()
     if answer is None:
         raise typer.Exit(130)
@@ -89,12 +80,9 @@ def pick_many(message: str, choices: list[tuple[str, Row]], what: str, columns: 
     _need(what)
     if not choices:
         raise fail(f"there is no {what} to choose from")
+    items, instruction = _table(columns, choices, "(type to filter, space ticks, enter goes on)", indent=2)
     answer = questionary.checkbox(
-        message,
-        choices=_table(columns, choices, indent=2),  # past the tick box
-        use_search_filter=True,
-        use_jk_keys=False,
-        instruction="(type to filter, space ticks, enter goes on)",
+        message, choices=items, use_search_filter=True, use_jk_keys=False, instruction=instruction
     ).ask()
     if not answer:
         raise typer.Exit(130)

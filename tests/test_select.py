@@ -81,13 +81,13 @@ def test_several_are_ticked_from_one_list(home: Home, at_terminal, monkeypatch):
 
 
 def values(choices) -> list:
-    """What a picker offers, without its header row."""
-    return [c.value for c in choices if not isinstance(c, select.questionary.Separator)]
+    """What a picker offers."""
+    return [c.value for c in choices]
 
 
 def test_a_picker_is_a_coloured_table_that_filters(home: Home, at_terminal, monkeypatch):
-    """A header that every filter keeps, rows in aligned columns, coloured as the lists are, and filtered by
-    their text."""
+    """A header above the rows, which is not a row, rows in aligned columns, coloured as the lists are, and
+    filtered by their text."""
     home.transcript(A, home.folder("w"))
     home.staff_file(A, "one", {HERE: "~/w"})
     home.staff_file(B, "a-longer-name", {"elsewhere": "~/w"})
@@ -95,16 +95,17 @@ def test_a_picker_is_a_coloured_table_that_filters(home: Home, at_terminal, monk
     shown = {}
 
     def choose(message, choices, **kw):
-        shown["choices"] = choices
+        shown["choices"], shown["instruction"] = choices, kw["instruction"]
         return Answer(values(choices)[0])
 
     monkeypatch.setattr(select.questionary, "select", choose)
     select.Staffers().get()
-    header, *rows = shown["choices"]
-    assert isinstance(header, select.questionary.Separator) and header.title.startswith("name")
-    assert "x" in header.title.lower()  # the header is kept whatever is typed
-    texts = ["".join(t for _, t in r.title) for r in rows]
-    assert texts[0].index(B[:8]) == texts[1].index(A[:8]) == header.title.index("session")
+    rows = shown["choices"]
+    assert not any(isinstance(r, select.questionary.Separator) for r in rows)  # the pointer lands on a row as one types
+    header = shown["instruction"].split("\n")[1]
+    assert header.lstrip().startswith("name")
+    texts = ["   " + "".join(t for _, t in r.title) for r in rows]  # as shown, past the pointer
+    assert texts[0].index(B[:8]) == texts[1].index(A[:8]) == header.index("session")
     assert "one" in rows[1].title.lower() and "elsewhere" in rows[0].title.lower()
     styles = {t.strip(): st for r in rows for st, t in r.title}
     assert "ansicyan" in styles[A[:8]] and "magenta" in styles["device"] and "bold" in styles["one"]

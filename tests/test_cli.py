@@ -26,7 +26,7 @@ def test_picker_fills_a_missing_session(home: Home, at_terminal, monkeypatch: py
     seen = {}
 
     def select(message, choices, **kw):
-        seen["values"] = [c.value for c in choices if not isinstance(c, ui.questionary.Separator)]
+        seen["values"] = [c.value for c in choices]
         return Answer(B)
 
     monkeypatch.setattr(ui.questionary, "select", select)
