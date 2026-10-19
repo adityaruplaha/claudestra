@@ -371,3 +371,19 @@ def test_move_refuses_a_transcript_already_at_the_destination_and_clashing_folde
     fs, t, m = home.setup()
     with pytest.raises(Refused):
         move_ops.plan(fs, HOST, t, m.sessions[A], dst, None)
+
+
+def test_a_session_that_has_not_reported_its_status_yet_is_starting_not_stopped(home: Home):
+    """Just started, Claude Code's pid file has no status yet; `session wait` must not take that for stopped."""
+    from claudestra.ops import compact as compact_ops
+
+    home.fake_proc([(50, 1, "claude", "/usr/bin/claude")])
+    sess = home.home / ".claude" / "sessions"
+    sess.mkdir(parents=True)
+    record = {"pid": 50, "sessionId": A, "procStart": "1050", "kind": "interactive"}
+    (sess / "50.json").write_text(json.dumps(record))
+    fs, _, _ = home.setup()
+    assert compact_ops.status(fs, A) == "starting"
+    (sess / "50.json").write_text(json.dumps(record | {"status": "idle"}))
+    assert compact_ops.status(fs, A) == "idle"
+    assert compact_ops.status(fs, B) is None  # not running
