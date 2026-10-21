@@ -79,6 +79,24 @@ def test_relations_and_the_table(home: Home):
         perm.require_on_session("rename", dev, plain, R["rename"])  # a session that is no staffer: the user's alone
 
 
+def test_a_manager_has_its_specialist_before_claude_code_writes_the_transcript(home: Home):
+    """Spawned, the session has a staff file but no transcript until Claude Code writes one (it may sit at the
+    folder-trust prompt); its manager stops and dismisses it all the same. One whose staff file names another
+    machine as well may live there, so the file's folder here does not place it under a manager here."""
+    top = home.folder("top")
+    home.transcript(A, top)
+    home.staff_file(A, "mgr", {HERE: "~/top"})
+    home.folder("top/sub")
+    home.staff_file(B, "new", {HERE: "~/top/sub"})  # spawned, not yet written
+    home.staff_file(C, "visitor", {HERE: "~/top/sub", "elsewhere": "~/w"})  # lives elsewhere, a folder here
+    home.acting(HUMAN, {A: "folder"})
+    mgr = Caller("folder", A, "mgr", 1, folder=top)
+    assert perm.relation(mgr, Session(B)) == perm.MANAGER
+    perm.require_on_session("stop", mgr, Session(B), R["stop"])
+    perm.require_on_session("dismiss", mgr, Session(B), R["dismiss"])
+    assert perm.relation(mgr, Session(C)) == perm.NONE
+
+
 def test_him_under_claude_is_restricted(home: Home):
     """The user at a terminal with Claude in the chain is restricted mode: what needs the user is refused."""
     from claudestra.proctree import ClaudeProc, Proc

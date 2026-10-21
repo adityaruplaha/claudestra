@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from ..caller import Caller, Refused, transcript_problem
+from ..caller import Caller, Refused, filed_under, transcript_problem
 from ..context import Context
 from ..portable import given_folder
 
@@ -57,10 +57,20 @@ def relation(subject: Caller, session) -> str:
         and sf.folder is not None
         and any(m.id == subject.session for m in st.managers)
         and sf.folder.is_relative_to(subject.folder)
-        and not transcript_problem(c.fs, c.machine.hostname, sf.session, sf.folder)
+        and _filed_as_its_staff_file_says(c, sf)
     ):
         return MANAGER
     return NONE
+
+
+def _filed_as_its_staff_file_says(c, sf) -> bool:
+    """Whether the staffer is where its staff file puts it, so that the file's folder places it under a
+    manager: filed there, or not yet filed anywhere, as a session just spawned is until Claude Code writes
+    its transcript, when the file names a folder on this machine only, so that it lives nowhere else."""
+    host = c.machine.hostname
+    if not filed_under(c.fs, sf.session):
+        return all(str(h).lower() == host.lower() for h in sf.folders)
+    return not transcript_problem(c.fs, host, sf.session, sf.folder)
 
 
 def relation_to_folder(subject: Caller, folder: Path, sid: str) -> str:
