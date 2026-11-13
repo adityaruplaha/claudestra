@@ -84,7 +84,7 @@ Every reading command takes `--json`.
 
 **The staff**: `clost staff list | hire | dismiss | describe | local-folder`. `staff list` (also `ls`) shows the staff on every machine and the machine each lives on; `--scope device,folder` narrows it by scope, `--resident`, `--non-resident` and `--visitors` (staffers from another machine with a folder here) by machine, and `--tree` shows who manages whom on this machine. `staff local-folder assign | remove | list-missing` gives a staffer that lives on another machine a folder on this one, takes it away, or lists those with none.
 
-**The trash**: `clost trash list | add | restore | purge`. Claude Code has no per-session delete; claudestra moves a session and every store keyed by it to a trash, puts it back exactly with `restore`, and only `purge` deletes.
+**The trash**: `clost trash list | add | restore | purge`. Claude Code has no per-session delete; claudestra moves a session and every store keyed by it to a trash, puts it back exactly with `restore`, and only `purge` deletes: the entries named, or every one passing `--older-than DAYS`, `--moved` (the copies a `machine send` or `fetch` left behind when the session moved) or `--moved-to HOST`, or, with none of these, the ones ticked from the trash.
 
 **Other machines**: `clost machine list | send | fetch` move a stopped session between machines (you only).
 

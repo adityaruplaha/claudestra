@@ -12,6 +12,7 @@ import pytest
 
 from claudestra.actions import permissions as perm
 from claudestra.caller import Caller, Refused
+from claudestra.ops import trash as trash_ops
 from claudestra.runners import tmux as runner
 from claudestra.session import Session, Staffer
 
@@ -321,7 +322,7 @@ def test_move_trash_and_restore_permissions(home: Home):
     with pytest.raises(Refused, match="restore is for"):
         c.restore(B).perform()
     with pytest.raises(Refused, match="purge is for"):
-        c.purge(1).perform()
+        c.purge(trash_ops.Choice(older_than_days=1)).perform()
     c._subject = Caller("device", C, "d", 1)
     assert c.restore(B[:8]).perform() and Session(B).here
 

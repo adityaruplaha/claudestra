@@ -90,7 +90,11 @@ def trash(args: dict) -> dict:
     if running_pid(ROOT / "sessions", PROC, sid):
         raise SystemExit(json.dumps({"error": f"{sid} is running here"}))
     items = [(rel, safe(rel)) for rel in args["stores"] if (ROOT / rel).exists() or (ROOT / rel).is_symlink()]
-    return {"entry": trash_into(ROOT, sid, items, args.get("slug"), args.get("title"), args.get("reason")).name}
+    return {
+        "entry": trash_into(
+            ROOT, sid, items, args.get("slug"), args.get("title"), args.get("reason"), args.get("moved_to")
+        ).name
+    }
 
 
 def log(args: dict) -> dict:

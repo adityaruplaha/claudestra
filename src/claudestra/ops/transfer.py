@@ -304,7 +304,7 @@ def send(
         if bad := [r for r, h in want.items() if got.get(r) != h]:
             raise Refused(f"{len(bad)} files did not arrive intact (first: {bad[0]})")
         refuse_if_running(fs, s)  # again, just before the copy here goes
-        trash_ops.apply(fs, caller, trash_ops.Plan(s, st.items, 0), reason=f"sent to {t.hostname}")
+        trash_ops.apply(fs, caller, trash_ops.Plan(s, st.items, 0), reason=f"sent to {t.hostname}", moved_to=t.hostname)
     except Exception as e:
         if pushed:  # whatever arrived goes to the far side's trash, so there is one home again
             try:
@@ -434,7 +434,14 @@ def fetch(
         for d in plan.files.values():
             journal.move(staging / "out" / d, fs.root / d)
         t.helper(
-            {"action": "trash", "sid": sid, "stores": probe["stores"], "slug": homes[0], "reason": f"fetched by {host}"}
+            {
+                "action": "trash",
+                "sid": sid,
+                "stores": probe["stores"],
+                "slug": homes[0],
+                "reason": f"fetched by {host}",
+                "moved_to": host,
+            }
         )
     except Exception as e:
         stuck = journal.undo()  # the copy here goes again, so the session stays where it was

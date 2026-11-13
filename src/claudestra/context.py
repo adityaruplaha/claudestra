@@ -229,10 +229,11 @@ class Context:
 
         return Restore(entry)
 
-    def purge(self, older_than_days: float):
+    def purge(self, choice):
+        """`choice` is an ops.trash.Choice: the entries named, or the filters."""
         from .actions.purge import Purge
 
-        return Purge(older_than_days)
+        return Purge(choice)
 
     def fetch(
         self, session_id: str, host: str, src: str | None = None, dest: Path | None = None, copy_memory: bool = False

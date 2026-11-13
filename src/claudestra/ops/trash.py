@@ -7,6 +7,8 @@ except by purge.
 
 from __future__ import annotations
 
+import datetime as _dt
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -56,11 +58,11 @@ def plan(fs: ClaudeFS, trust: Trust, s: SessionRecord, recent_minutes: float) ->
     return Plan(s, st.items, sum(size(p) for p in st.paths()))
 
 
-def apply(fs: ClaudeFS, caller: Caller, plan: Plan, reason: str | None = None) -> Path:
+def apply(fs: ClaudeFS, caller: Caller, plan: Plan, reason: str | None = None, moved_to: str | None = None) -> Path:
     refuse_if_running(fs, plan.session)  # again: the user may have resumed it while the plan was shown
     try:
         entry = portable.trash_into(
-            fs.root, plan.session.session_id, plan.items, plan.session.homes[0], plan.session.name, reason
+            fs.root, plan.session.session_id, plan.items, plan.session.homes[0], plan.session.name, reason, moved_to
         )
     except FileExistsError as e:
         raise Refused(str(e)) from None
@@ -118,15 +120,82 @@ def restore(fs: ClaudeFS, caller: Caller, token: str, dry: bool) -> list[str]:
     return [f"restored {mv['from']}" for mv in pending]
 
 
-def purgeable(fs: ClaudeFS, older_than_days: float) -> list[Path]:
-    if older_than_days < 1:
+def moved_to(manifest: dict | None) -> str | None:
+    """The machine a trashed copy's session went on to, for the copy a send or a fetch leaves behind: as the
+    manifest records it, or as the reason written before manifests recorded it says."""
+    if not manifest:
+        return None
+    if host := manifest.get("moved_to"):
+        return str(host)
+    m = re.fullmatch(r"(?:sent to|fetched by) (\S+)", str(manifest.get("reason") or ""))
+    return m.group(1) if m else None
+
+
+def why(manifest: dict | None) -> str | None:
+    """Why the entry is in the trash, when something other than `trash add` put it there: for a copy left behind,
+    the machine its session moved to and whether a send from here or a fetch from there moved it."""
+    reason = str((manifest or {}).get("reason") or "") or None
+    if host := moved_to(manifest):
+        how = (
+            " by send"
+            if (reason or "").startswith("sent ")
+            else " by fetch"
+            if (reason or "").startswith("fetched ")
+            else ""
+        )
+        return f"moved to {host}{how}"
+    return reason
+
+
+def removed_at(manifest: dict | None) -> str | None:
+    """When the entry was trashed, in local time to the minute, as the manifest records it."""
+    try:
+        at = _dt.datetime.fromisoformat(str((manifest or {})["removed_at"]))
+    except (KeyError, ValueError):
+        return None
+    return at.astimezone().strftime("%Y-%m-%d %H:%M")
+
+
+@dataclass
+class Choice:
+    """Which trash entries a purge takes: the entries named, or every entry passing all the filters given."""
+
+    names: tuple[str, ...] = ()
+    older_than_days: float | None = None
+    moved: bool = False  # a copy left behind when its session moved to another machine, by send or fetch
+    moved_to: tuple[str, ...] = ()  # the same, to one of these machines
+
+    @property
+    def filtered(self) -> bool:
+        return self.older_than_days is not None or self.moved or bool(self.moved_to)
+
+
+def purgeable(fs: ClaudeFS, choice: Choice) -> list[Path]:
+    """The entries a purge would delete, refusing a choice that names entries and filters too, or neither."""
+    if choice.names and choice.filtered:
+        raise Refused("name entries, or filter them with --older-than, --moved and --moved-to, not both")
+    if choice.names:
+        found: dict[Path, None] = {}
+        for token in choice.names:
+            exact = [e for e, _ in entries(fs) if e.name == token]  # so an entry without a manifest can be named
+            found[exact[0] if exact else find_entry(fs, token)[0]] = None
+        return list(found)
+    if not choice.filtered:
+        raise Refused("say which entries to purge: name them, or give --older-than, --moved or --moved-to")
+    if choice.older_than_days is not None and choice.older_than_days < 1:
         raise Refused("--older-than must be at least 1 day")
-    cutoff = time.time() - older_than_days * 86400
-    return [e for e, _ in entries(fs) if e.stat().st_mtime < cutoff]
+    cutoff = time.time() - (choice.older_than_days or 0) * 86400
+    to = {h.lower() for h in choice.moved_to}
+    return [
+        e
+        for e, mf in entries(fs)
+        if (choice.older_than_days is None or e.stat().st_mtime < cutoff)
+        and (not (choice.moved or to) or (host := moved_to(mf)) is not None and (not to or host.lower() in to))
+    ]
 
 
 def purge(fs: ClaudeFS, caller: Caller, doomed: list[Path]) -> list[str]:
-    """Delete exactly the entries given, as `purgeable` listed them and the user was shown."""
+    """Delete exactly the entries given, as `purgeable` chose them and the user was shown."""
     root = trash_dir(fs).resolve()
     out = []
     for e in doomed:

@@ -170,10 +170,11 @@ def write_manifest(entry: Path, manifest: dict) -> None:
     atomic_write_text(entry / MANIFEST, json.dumps(manifest, indent=2))
 
 
-def trash_into(root: Path, session_id: str, items, slug_name=None, title=None, reason=None) -> Path:
+def trash_into(root: Path, session_id: str, items, slug_name=None, title=None, reason=None, moved_to=None) -> Path:
     """Move a session's stores into a new trash entry: <root>/session-trash/<stamp>-<id>/stores/<label>,
     with a manifest.json listing every move. The manifest is written even when a move fails part way,
-    so what did move can be restored. `items` is (label, path) pairs."""
+    so what did move can be restored. `items` is (label, path) pairs. `moved_to` is the machine the
+    session went on to, for the copy a send or a fetch leaves behind."""
     entry = root / TRASH / f"{stamp()}-{session_id}"
     entry.mkdir(parents=True)
     moves = []
@@ -192,6 +193,8 @@ def trash_into(root: Path, session_id: str, items, slug_name=None, title=None, r
         }
         if reason:
             manifest["reason"] = reason
+        if moved_to:
+            manifest["moved_to"] = moved_to
         write_manifest(entry, manifest)
     return entry
 

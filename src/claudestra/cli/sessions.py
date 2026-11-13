@@ -21,7 +21,6 @@ from .ui import (
     Dry,
     Socket,
     Yes,
-    fail,
     go_ahead,
     lines,
     out,
@@ -33,11 +32,13 @@ TRASHABLE = select.Sessions(
     staff=False, running=False, here=True, many=True, help="Sessions off the staff and stopped; picked at a terminal."
 )
 ENTRY = select.TrashEntries()
+PURGEABLE = select.TrashEntries(
+    many=True, help="Trash entries, or 8+ characters of their session IDs; ticked at a terminal unless filtered."
+)
 MOVE_TO = select.Folder(
     message="Move it to which folder?", help="The folder to refile it under; browsed to at a terminal."
 )
 NEW_NAME = select.Text("New name:", "the new name")
-AGE = select.Text("Delete entries older than how many days?", "--older-than DAYS", "30")
 
 
 @session_app.command()
@@ -90,7 +91,8 @@ def rename(
 
 @trash_app.command("list")
 def trash_list(ctx: typer.Context, as_json: AsJson = False) -> None:
-    """The trash: each entry and the title of the session in it."""
+    """The trash: each entry, the title of the session in it, when it was trashed, and why, for a copy a send or a
+    fetch left behind."""
     c: Ctx = ctx.obj
     listing.Listing(
         [
@@ -98,6 +100,8 @@ def trash_list(ctx: typer.Context, as_json: AsJson = False) -> None:
             listing.Column(
                 "title", lambda em: (em[1].get("title") or "-") if em[1] else Text("(no manifest)", style="red")
             ),
+            listing.Column("trashed", lambda em: listing.trashed_at(em[1])),
+            listing.Column("reason", lambda em: listing.trash_reason(em[1])),
         ],
         lambda em: {"entry": em[0].name, "manifest": em[1]},
     ).print(trash_ops.entries(c.fs), as_json)
@@ -139,24 +143,38 @@ def restore(
 @trash_app.command()
 def purge(
     ctx: typer.Context,
+    entries: PURGEABLE.arg = None,
     older_than: Annotated[
         float | None,
-        typer.Option("--older-than", metavar="DAYS", help="Delete trash entries older than this; asked at a terminal."),
+        typer.Option("--older-than", metavar="DAYS", help="Only entries trashed more than DAYS ago, at least 1."),
+    ] = None,
+    moved: Annotated[
+        bool,
+        typer.Option(
+            "--moved", help="Only the copies left behind when the session moved to another machine, by send or fetch."
+        ),
+    ] = False,
+    moved_to: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--moved-to",
+            metavar="HOST",
+            help="Only those copies whose session moved to HOST, as trust.yaml names it; repeatable.",
+        ),
     ] = None,
     dry: Dry = False,
     yes: Yes = False,
 ) -> None:
-    """Delete trash entries older than DAYS, permanently (the user only)."""
+    """Delete trash entries permanently (the user only): the ones named, or every one the filters pass, which
+    combine. With neither, they are ticked from the trash at a terminal."""
     c: Ctx = ctx.obj
-    if older_than is None:
-        try:
-            older_than = float(AGE.get())
-        except ValueError:
-            raise fail("refused: --older-than is a number of days") from None
-    action = c.purge(older_than)
+    choice = trash_ops.Choice(tuple(entries or ()), older_than, moved, tuple(moved_to or ()))
+    if not choice.names and not choice.filtered:
+        choice.names = tuple(PURGEABLE.get(None))
+    action = c.purge(choice)
     done = refusing(
         lambda: action.perform(lambda plan: bool(plan) and go_ahead(yes, dry, prompt="Delete these for good?")(plan))
     )
     if not action.doomed:
-        out.print("nothing that old in the trash")
+        out.print("nothing in the trash passes those filters")
     lines(done or [], "red")

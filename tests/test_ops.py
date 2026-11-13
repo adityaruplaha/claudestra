@@ -17,7 +17,7 @@ from claudestra.ops import rewrite, transfer
 from claudestra.ops import trash as trash_ops
 from claudestra.portable import slug
 
-from conftest import HOST, HUMAN, A, B, Home, aged, far_side
+from conftest import HOST, HUMAN, A, B, C, Home, aged, far_side
 
 # --- the process chain and the login caller ---------------------------------------------------------
 
@@ -176,10 +176,51 @@ def test_trash_restore_purge(home: Home):
     fs, t, m = home.setup()
     entry = trash_ops.apply(fs, HUMAN, trash_ops.plan(fs, t, m.sessions[B], 10))
     os.utime(entry, (0, 0))
-    doomed = trash_ops.purgeable(fs, 1)
+    doomed = trash_ops.purgeable(fs, trash_ops.Choice(older_than_days=1))
     assert doomed == [entry]
     trash_ops.purge(fs, HUMAN, doomed)
     assert not entry.exists()
+
+
+def test_purge_takes_the_entries_named_or_every_one_the_filters_pass(home: Home):
+    """Named, by entry or session ID, whatever their age; or filtered by age and by the machine a copy's session
+    moved to, from the manifest or, for an entry trashed before manifests recorded it, from its reason."""
+    fs, _, _ = home.setup()
+    trash = fs.root / portable.TRASH
+
+    def entry(sid: str, **manifest) -> Path:
+        e = trash / f"20260101T000000Z-{sid}"
+        e.mkdir(parents=True)
+        portable.write_manifest(e, {"session_id": sid, "removed_at": "2026-01-01T00:00:00+00:00", **manifest})
+        return e
+
+    went = entry(A, reason="sent to Far", moved_to="Far")
+    older = entry(B, reason="fetched by Other")  # written before manifests recorded moved_to
+    plain = entry(C)
+    bare = trash / "20260101T000000Z-no-manifest"
+    bare.mkdir()
+    for e in (older, plain):
+        os.utime(e, (0, 0))
+    pick = lambda **kw: trash_ops.purgeable(fs, trash_ops.Choice(**kw))  # noqa: E731
+
+    assert pick(names=(went.name, B[:8], went.name)) == [went, older]  # a name given twice is one entry
+    assert pick(names=(bare.name,)) == [bare]  # one without a manifest is named by its entry
+    assert pick(moved=True) == [went, older]
+    assert pick(moved_to=("far",)) == [went] and pick(moved_to=("far", "other")) == [went, older]
+    assert pick(moved=True, older_than_days=1) == [older]  # the filters combine
+    assert pick(older_than_days=1) == [older, plain]
+    with pytest.raises(Refused, match="not both"):
+        pick(names=(went.name,), moved=True)
+    with pytest.raises(Refused, match="say which entries"):
+        pick()
+    with pytest.raises(Refused, match="at least 1 day"):
+        pick(older_than_days=0.5, moved=True)
+    with pytest.raises(Refused, match="no trash entry"):
+        pick(names=("zzzzzzzzzz",))
+    assert trash_ops.why(portable.read_manifest(went)) == "moved to Far by send"
+    assert trash_ops.why(portable.read_manifest(older)) == "moved to Other by fetch"
+    assert trash_ops.why({"reason": "failed send"}) == "failed send" and trash_ops.why(None) is None
+    assert trash_ops.removed_at(None) is None and trash_ops.removed_at({"removed_at": "x"}) is None
 
 
 def test_trash_failing_part_way_then_restore(home: Home, monkeypatch: pytest.MonkeyPatch):
@@ -248,11 +289,14 @@ def test_send_then_fetch_round_trip(home: Home, tmp_path: Path):
     landed = far_home / ".claude" / "projects" / slug(far_home / "dest") / f"{A}.jsonl"
     assert plan.cwd_changes and landed.exists() and not tr.exists()
     assert json.loads(landed.read_text())["cwd"] == str(far_home / "dest")
-    assert len(trash_ops.entries(fs)) == 1
+    [(_, left)] = trash_ops.entries(fs)  # the copy left here records where the session went
+    assert left["moved_to"] == lt.hostname and trash_ops.moved_to(left) == lt.hostname
 
     fs, t, _ = home.setup()
     transfer.fetch(fs, HOST, machines, t, HUMAN, A, lt, None, home.home / "work", t.staff[0].folders, False)
     assert json.loads(tr.read_text())["cwd"] == str(home.home / "work") and not landed.exists()
+    [far_entry] = (far_home / ".claude" / portable.TRASH).iterdir()  # and the one a fetch leaves there
+    assert portable.read_manifest(far_entry)["moved_to"] == HOST
 
 
 def test_send_and_fetch_copy_memory_only_when_asked_adding_what_is_missing(home: Home, tmp_path: Path):

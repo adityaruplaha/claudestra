@@ -168,6 +168,23 @@ def plain(cells: tuple[Cell, ...]) -> str:
     return "  ".join(c.plain if isinstance(c, Text) else c for c in cells)
 
 
+# --- trash entries ---------------------------------------------------------------------------------------
+
+
+def trashed_at(manifest: dict | None) -> Text:
+    from ..ops import trash as trash_ops
+
+    return dim(trash_ops.removed_at(manifest))
+
+
+def trash_reason(manifest: dict | None) -> Text:
+    """Why the entry is there, when something other than `trash add` put it there, as `trash_ops.why` says."""
+    from ..ops import trash as trash_ops
+
+    reason = trash_ops.why(manifest)
+    return Text(reason, style="blue") if reason else dim(None)
+
+
 # --- staffers ---------------------------------------------------------------------------------------------
 
 

@@ -60,7 +60,39 @@ def test_move_and_trash_and_restore_and_purge(home: Home, as_him, tmp_path: Path
     r = run(app, [*home.cli_args(), "trash", "restore", entry.name, "-y"])
     assert r.exit_code == 0 and "restored" in r.output and not trash_ops.entries(home.setup()[0])
     r = run(app, [*home.cli_args(), "trash", "purge", "--older-than", "1", "--dry-run"])
-    assert r.exit_code == 0 and "nothing that old" in r.output
+    assert r.exit_code == 0 and "nothing in the trash passes" in r.output
+
+
+def test_purge_named_entries_or_moved_copies_and_tick_them_at_a_terminal(home: Home, as_him, at_terminal, monkeypatch):
+    from claudestra.cli import select
+
+    fs, _, _ = home.setup()
+    made = []
+    for sid, extra in ((A, {"reason": "sent to elsewhere", "moved_to": "elsewhere"}), (B, {})):
+        e = fs.root / portable.TRASH / f"20260101T000000Z-{sid}"
+        e.mkdir(parents=True)
+        portable.write_manifest(e, {"session_id": sid, "title": f"t-{sid[:4]}", **extra})
+        made.append(e)
+    r = run(app, [*home.cli_args(), "trash", "list"])
+    assert r.exit_code == 0 and "moved to elsewhere by send" in r.output and "reason" in r.output
+    r = run(app, [*home.cli_args(), "trash", "purge", "--moved", "--dry-run"])
+    assert r.exit_code == 0 and made[0].name in r.output and made[1].name not in r.output and "dry run" in r.output
+    r = run(app, [*home.cli_args(), "trash", "purge", "--moved-to", "nowhere", "-y"])
+    assert r.exit_code == 1 and "names no machine nowhere" in r.output
+    r = run(app, [*home.cli_args(), "trash", "purge", made[0].name, "--moved", "-y"])
+    assert r.exit_code == 1 and "not both" in r.output
+    offered = {}
+
+    def tick(message, choices, **kw):
+        offered["values"] = [c.value for c in choices]
+        return Answer([made[1].name])
+
+    monkeypatch.setattr(select.questionary, "checkbox", tick)
+    r = run(app, [*home.cli_args(), "trash", "purge", "-y"])  # neither named nor filtered: ticked
+    assert r.exit_code == 0 and offered["values"] == [e.name for e in made]
+    assert not made[1].exists() and made[0].exists()
+    r = run(app, [*home.cli_args(), "trash", "purge", A[:8], "-y"])  # by session ID, whatever its age
+    assert r.exit_code == 0 and not made[0].exists()
 
 
 def test_start_stop_compact_and_type_plans(home: Home, as_him):

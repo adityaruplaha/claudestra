@@ -271,11 +271,19 @@ class TrashEntries(Selector):
     what = "a trash entry"
     message = "Which trash entry?"
     help = "A trash entry, or 8+ characters of its session ID; picked at a terminal."
-    columns = ("entry", "title")
+    columns = ("entry", "title", "trashed", "reason")
 
     def choices(self) -> list[tuple[str, Row]]:
         return [
-            (e.name, (listing.Text(e.name, style="cyan"), mf.get("title") or "-"))
+            (
+                e.name,
+                (
+                    listing.Text(e.name, style="cyan"),
+                    (mf.get("title") or "-")[:40],
+                    listing.trashed_at(mf),
+                    listing.trash_reason(mf),
+                ),
+            )
             for e, mf in trash_ops.entries(_context().fs)
             if mf
         ]
