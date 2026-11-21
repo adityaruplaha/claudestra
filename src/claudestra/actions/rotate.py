@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import uuid
 
+from .. import portable
 from ..caller import Refused
+from ..ops import open_items as items_ops
 from ..ops import staff as staff_ops
 from ..ops import trash as trash_ops
 from ..ops import trust_file
@@ -37,15 +39,23 @@ class Rotate(SessionAction):
     reversible = True
 
     def __init__(
-        self, staffer, claude: str, prompt: str | None = None, recent_minutes: float = 10.0, socket: str | None = None
+        self,
+        staffer,
+        claude: str,
+        prompt: str | None = None,
+        recent_minutes: float = 10.0,
+        socket: str | None = None,
+        reason: str | None = None,
     ):
         super().__init__(staffer)
         self.new = str(uuid.uuid4())
         self.claude, self.socket, self.recent_minutes = claude, socket, recent_minutes
+        self.reason = (reason or "").strip() or None
         self.brief = (prompt or "").strip() or None
         self.plan: trash_ops.Plan | None = None
         self.entry = None  # the old session's trash entry, once trashed
-        self.rehomed = False
+        self.rehomed: str | None = None  # the staff file's text before, once moved
+        self.items_moved = False
         self.trust_before: str | None | bool = False  # False: trust.yaml not changed
 
     @property
@@ -73,6 +83,8 @@ class Rotate(SessionAction):
         if r is None and (others := [str(h) for h in sf.folders if str(h).lower() != host.lower()]):
             raise Refused(f"{sf.name!r} has no transcript here and may live on {', '.join(others)}; rotate it there")
         self.plan = trash_ops.plan(c.fs, c.trust, r, self.recent_minutes) if r is not None else None
+        if self.reason is None:
+            raise Refused("say why it is rotated, for its history, with --reason")
         if self.brief is None and self.subject.kind != "human":
             raise Refused("a session that rotates a staffer gives its brief, where the work stands; use --prompt")
 
@@ -135,8 +147,9 @@ class Rotate(SessionAction):
             launch = self.launch  # its prompt is read from the staff file while it is still the old one's
             if self.plan:
                 self.entry = trash_ops.apply(c.fs, self.subject, self.plan, reason=f"rotated to {self.new}")
-            staff_ops.rehome(c.trust.config, old, self.new)
-            self.rehomed = True
+            self.rehomed = staff_ops.rehome(c.trust.config, old, self.new, portable.now_local(), self.reason)
+            items_ops.follow(c.trust.config, old, self.new)
+            self.items_moved = True
             c.refresh()
             if in_trust:
                 self.trust_before = trust_file.change(c.trust.trust_file, self._renamer(old, self.new), c.name_of)
@@ -178,9 +191,12 @@ class Rotate(SessionAction):
         if self.trust_before is not False:
             trust_file.restore(c.trust.trust_file, self.trust_before)
             self.trust_before = False
-        if self.rehomed:
-            staff_ops.rehome(c.trust.config, self.new, old)
-            self.rehomed = False
+        if self.items_moved:
+            items_ops.follow(c.trust.config, self.new, old)
+            self.items_moved = False
+        if self.rehomed is not None:
+            staff_ops.unrehome(c.trust.config, old, self.new, self.rehomed)
+            self.rehomed = None
         if self.entry is not None:
             trash_ops.restore(c.fs, self.subject, self.entry.name, dry=False)
             self.entry = None

@@ -62,12 +62,32 @@ def unhire(config: Path, sid: str, was_dismissed: str | None) -> None:
     staff_path(config, sid).unlink()
 
 
-def rehome(config: Path, old: str, new: str) -> None:
-    """Move a staff file to another session's ID, exactly as it is, for a rotate (and back, for its undo)."""
-    dst = staff_path(config, new)
+def add_history(file: Path, old: str, when: str, reason: str | None) -> None:
+    """Add a session the staffer had before to the end of its staff file's history."""
+    from ..trust import StaffFile, update_staff_file
+
+    entry = {"session": old, "rotated": when, **({"reason": reason} if reason else {})}
+    update_staff_file(StaffFile(file, "", "", None, {}, ""), lambda raw: raw.setdefault("history", []).append(entry))
+
+
+def rehome(config: Path, old: str, new: str, when: str | None = None, reason: str | None = None) -> str:
+    """Move a staff file to another session's ID, for a rotate, adding the old session to its history (at the time
+    `when`) so that an ID written before still reaches the staffer. Returns the file's text before, which
+    `unrehome` puts back."""
+    src, dst = staff_path(config, old), staff_path(config, new)
     if dst.exists():
         raise Refused(f"{dst} exists already")
-    staff_path(config, old).rename(dst)
+    before = src.read_text()
+    src.rename(dst)
+    if when is not None:
+        add_history(dst, old, when, reason)
+    return before
+
+
+def unrehome(config: Path, old: str, new: str, before: str) -> None:
+    """Undo a rehome: the staff file back under the old ID, as it was."""
+    atomic_write_text(staff_path(config, old), before)
+    staff_path(config, new).unlink()
 
 
 def dismiss(config: Path, sid: str) -> str | None:

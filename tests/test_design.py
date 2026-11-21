@@ -40,7 +40,7 @@ def test_the_tables_match_what_each_action_declares():
     written = {}
     for row in body:
         allowed = {COLUMNS[h] for h, cell in zip(header, row[1:], strict=True) if cell in ("✅", "⚠️")}
-        if row[0] in ("fix-name", "describe"):
+        if row[0] in ("fix-name", "describe", "staff history add") or row[0].startswith("open-items "):
             allowed.add(perm.SELF)  # "also allow the staffer itself"
         written[row[0]] = allowed
     for row in _table("**Actions on anything else:**")[2:]:

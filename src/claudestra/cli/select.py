@@ -288,6 +288,56 @@ class TrashEntries(Selector):
         ]
 
 
+class OpenItems(Selector):
+    """Open items, by ULID, across every manager's file."""
+
+    what = "an open item"
+    message = "Which open item?"
+    help = "An open item's ULID, or the last 6 or more characters of it; picked at a terminal."
+    columns = ("item", "manager", "title", "state")
+
+    def choices(self) -> list[tuple[str, Row]]:
+        from ..ops import open_items as items_ops
+
+        c = _context()
+        found = sorted(
+            ((o, i) for o, items in items_ops.every(c.trust.config).items() for i in items), key=lambda p: p[1]["id"]
+        )
+        return [
+            (
+                i["id"],
+                (listing.item_id(i["id"]), listing.staffer_name(c, o), i.get("title", "")[:50], listing.item_state(i)),
+            )
+            for o, i in found
+        ]
+
+    def resolve(self, token: str) -> str:
+        return token
+
+
+class Projects(Selector):
+    """Whose open items to list: a manager, or `all` for every manager's."""
+
+    what = "a manager, or all"
+    message = "Whose open items?"
+    help = "A staffer: a manager's items, or those a specialist holds; picked at a terminal, with all."
+    columns = ("manager", "scope", "lives on")
+
+    def choices(self) -> list[tuple[str, Row]]:
+        c = _context()
+        t = c.trust
+        managers = sorted((sf for sf in t.staff if t.scope(sf.session)), key=lambda f: f.name)
+        return [("all", (listing.Text("all", style="bold"), "", ""))] + [
+            (sf.session, (listing.name(sf.name), listing.scope(t.scope(sf.session)), listing.where(c, sf)))
+            for sf in managers
+        ]
+
+    def resolve(self, token: str) -> str:
+        if token == "all":
+            return token
+        return Staffers().resolve(token)
+
+
 class Machines(Selector):
     """Machines trust.yaml describes; another one only, if `other`."""
 

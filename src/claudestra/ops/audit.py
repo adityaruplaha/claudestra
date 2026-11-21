@@ -23,12 +23,14 @@ from ..audit_errors import (
     SharedSlug,
     Stale,
     StaleConfig,
+    StrayItems,
     SubagentCopy,
     Symlink,
     TwoHomes,
 )
 from ..claude_fs import KEYED_STORES, MESSAGE_TYPES, UUID, ClaudeFS, prompt_text
 from ..model import Model
+from ..trust import Trust
 
 
 def forks(fs: ClaudeFS, m: Model) -> list[AuditError]:
@@ -269,9 +271,42 @@ def staff(fs: ClaudeFS, m: Model) -> list[AuditError]:
     ]
 
 
-REPORTS: dict[str, Callable[[ClaudeFS, Model], list[AuditError]]] = {
+def open_items(fs: ClaudeFS, m: Model, trust: Trust) -> list[AuditError]:
+    """Open items no one keeps: those of a manager that is off the staff, holds no scope or whose conversation is
+    gone, and those held by or waiting on a staffer no longer on the staff."""
+    from . import open_items as items_ops
+
+    out: list[AuditError] = []
+    lost = {sf.session for sf in m.lost_staff}
+    for owner, items in items_ops.every(trust.config).items():
+        sf = trust.staffer_now(owner)
+        if sf is None or trust.scope(sf.session) is None or sf.session in lost:
+            why = (
+                "is not on the staff"
+                if sf is None
+                else "holds no scope"
+                if trust.scope(sf.session) is None
+                else "has lost its conversation"
+            )
+            name = sf.name if sf else owner
+            out.append(StrayItems(owner, f"{len(items)} open items of {name!r}, which {why}; reassign or delete them"))
+            continue
+        for i in items:
+            for k in ("held_by", "waiting_on"):
+                v = i.get(k)
+                if v and v not in items_ops.WAITS and trust.staffer_now(v) is None:
+                    out.append(
+                        StrayItems(
+                            i["id"], f"item {i.get('title', '')!r} of {sf.name!r}: {k} {v}, which is not on the staff"
+                        )
+                    )
+    return out
+
+
+REPORTS: dict[str, Callable[..., list[AuditError]]] = {
     "names": names,
     "staff": staff,
+    "open-items": open_items,  # takes the trust as well
     "two-homes": two_homes,
     "runs": runs,
     "forks": forks,
@@ -284,3 +319,4 @@ REPORTS: dict[str, Callable[[ClaudeFS, Model], list[AuditError]]] = {
     "slugs": slugs,
     "config": config,
 }
+WITH_TRUST = {"open-items"}  # the reports that read the config as well as the sessions

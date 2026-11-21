@@ -246,10 +246,22 @@ class Staffer(Session):
 
         return Dismiss(self, socket)
 
-    def rotate(self, claude: str, prompt: str | None = None, recent_minutes: float = 10.0, socket: str | None = None):
+    def rotate(
+        self,
+        claude: str,
+        prompt: str | None = None,
+        recent_minutes: float = 10.0,
+        socket: str | None = None,
+        reason: str | None = None,
+    ):
         from .actions.rotate import Rotate
 
-        return Rotate(self, claude, prompt, recent_minutes, socket)
+        return Rotate(self, claude, prompt, recent_minutes, socket, reason)
+
+    def add_history(self, session_id: str, at: str | None = None, reason: str | None = None):
+        from .actions.staff_history_add import StaffHistoryAdd
+
+        return StaffHistoryAdd(self, session_id, at, reason)
 
     def set_description(self, description: str):
         from .actions.describe import Describe

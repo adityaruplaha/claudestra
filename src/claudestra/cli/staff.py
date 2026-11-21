@@ -54,6 +54,8 @@ STAFFER = select.Staffers()
 SPAWN_IN = select.Folder(message="Spawn it in which folder?", help="The folder it works in; browsed to at a terminal.")
 LINE = select.Text("Text:", "the line to type")
 DESCRIPTION = select.Text("Description:", "what it works on")
+REASON = select.Text("Reason:", "the reason, with --reason")
+OLD_SESSION = select.Text("Old session ID:", "the old session's full ID")
 
 
 def _bound_device(sid: str) -> bool:
@@ -464,6 +466,9 @@ def rotate(
     recent_minutes: Annotated[
         float, typer.Option("--recent-minutes", help="Refuse to trash an old session written this recently.")
     ] = 10.0,
+    reason: Annotated[
+        str | None, typer.Option("--reason", help="Why, for its history; asked for at a terminal if not given.")
+    ] = None,
     claude: ClaudePath = None,
     dry: Dry = False,
     yes: Yes = False,
@@ -474,7 +479,7 @@ def rotate(
     c: Ctx = ctx.obj
     caller = c.act(["pid-files", "proc-start", "remote-control"])
     st = c.staffer(STAFFER.get(staffer))
-    action = st.rotate(_claude(caller.kind, claude, socket), prompt, recent_minutes, socket)
+    action = st.rotate(_claude(caller.kind, claude, socket), prompt, recent_minutes, socket, REASON.get(reason))
     for line in (refusing(lambda: action.perform(go_ahead(yes, dry))) or "").splitlines():
         out.print(outcome(line) if not line.startswith("session ") else Text(line, style="bold"))
 
@@ -559,3 +564,50 @@ def local_folder_list_missing(ctx: typer.Context, as_json: AsJson = False) -> No
         lambda sf: {"session": sf.session, "name": sf.name, "folders": sf.folders},
         empty="every staffer that lives on another machine has a folder here",
     ).print(missing, as_json)
+
+
+history_app = typer.Typer(
+    help="A staffer's history: `list` reads it, `add` records a session it had before, given up some other way than rotate.",
+    rich_markup_mode="rich",
+    no_args_is_help=True,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+staff_app.add_typer(history_app, name="history")
+
+
+@history_app.command("list")
+def history_list(ctx: typer.Context, staffer: STAFFER.arg = None, as_json: AsJson = False) -> None:
+    """A staffer's history, oldest first: the sessions it had before, with when and why each was rotated, and its hires, dismissals, renames and descriptions on this machine (anyone)."""
+    from ..actions.staff_history_list import StaffHistoryList
+
+    sid = STAFFER.get(staffer)
+    entries = refusing(lambda: StaffHistoryList(sid).perform())
+    listing.Listing(
+        [
+            listing.Column("at", lambda r: listing.dim(r["at"])),
+            listing.Column("event", lambda r: Text(r["event"], style="cyan")),
+            listing.Column("session", lambda r: listing.short_id(r["session"])),
+            listing.Column("detail", lambda r: r["detail"] or "-", wrap=True),
+        ],
+        lambda r: dict(r),
+        empty="no history here",
+    ).print(entries, as_json)
+
+
+@history_app.command("add")
+def history_add(
+    ctx: typer.Context,
+    staffer: STAFFER.arg = None,
+    session: Annotated[str | None, typer.Argument(help="The full ID of the session it had before.")] = None,
+    at: Annotated[
+        str | None, typer.Option("--at", help="When it was given up, as an ISO time with its UTC offset; default now.")
+    ] = None,
+    reason: Annotated[str | None, typer.Option("--reason", help="Why; asked for at a terminal if not given.")] = None,
+    dry: Dry = False,
+    yes: Yes = False,
+) -> None:
+    """Record a session a staffer had before, as rotate does (who may describe it, and the staffer itself)."""
+    c: Ctx = ctx.obj
+    st = c.staffer(STAFFER.get(staffer))
+    old = OLD_SESSION.get(session)
+    refusing(lambda: st.add_history(old, at, REASON.get(reason)).perform(go_ahead(yes, dry)))

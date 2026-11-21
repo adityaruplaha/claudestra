@@ -175,6 +175,7 @@ The relations, with D for a device scope:
 | rename | ✅ | ✅ | ✅ | ✅ | ✅ | | | |
 | fix-name | ✅ | ✅ | ✅ | ✅ | ✅ | | | |
 | describe | ✅ | ✅ | | ✅ | | | | |
+| staff history add | ✅ | ✅ | | ✅ | | | | |
 | hire | ✅ | ✅ | | ✅ | | | | |
 | spawn | ✅ | ✅ | | ✅ | | | | |
 | dismiss | ✅ | ✅ | | ✅ | | | | |
@@ -182,10 +183,14 @@ The relations, with D for a device scope:
 | move | ✅ | | ✅ | | | | | |
 | trash | ✅ | | | | | | ✅ | |
 | send | ✅ | | | | | | | |
+| open-items add | ✅ | | | | | | | |
+| open-items update | ✅ | | | | | | | |
+| open-items delete | ✅ | | | | | | | |
+| open-items reassign | ✅ | | | | | | | |
 | local-folder assign | ✅ | | ✅ | ✅ | ✅ | ✅ | | |
 | local-folder remove | ✅ | | ✅ | ✅ | ✅ | ✅ | | |
 
-✅ allowed; ⚠️ allowed, with a caveat noted here; blank, refused. `fix-name` and `describe` also allow the staffer itself. For `hire` and `spawn`, the columns are the relation the subject would have to the session once hired or begun. `rotate` of a staffer with a scope, or one that starts at login, is the user's alone, since it rewrites `trust.yaml`. `local-folder assign` and `remove` act only on a staffer whose session lives on another machine, and change only this machine's folder in its staff file; while the user's preference `device-scopes-machine-bound` holds (it does unless set to `no`), `assign` refuses a device scope, and `machine send` and `fetch` refuse to move one, since a device scope belongs to its own machine; set to `no`, each goes ahead with a warning.
+✅ allowed; ⚠️ allowed, with a caveat noted here; blank, refused. `fix-name`, `describe` and `staff history add` also allow the staffer itself. The `open-items` actions are on the manager that holds the item, and allow it and the user alone: another manager's project is that manager's to keep, even one that answers to it. For `hire` and `spawn`, the columns are the relation the subject would have to the session once hired or begun. `rotate` of a staffer with a scope, or one that starts at login, is the user's alone, since it rewrites `trust.yaml`. `local-folder assign` and `remove` act only on a staffer whose session lives on another machine, and change only this machine's folder in its staff file; while the user's preference `device-scopes-machine-bound` holds (it does unless set to `no`), `assign` refuses a device scope, and `machine send` and `fetch` refuse to move one, since a device scope belongs to its own machine; set to `no`, each goes ahead with a warning.
 
 **Actions on anything else:**
 
@@ -206,12 +211,17 @@ name: <its name on the staff>
 folder:
   <hostname>: <the folder it works in there, ~ for the home folder>
 description: <what it works on>
+history:  # the sessions it had before, oldest first; only after a rotate
+  - session: <an earlier session ID>
+    rotated: <the exact time, ISO 8601 with its UTC offset>
+    reason: <why>
 ```
 
 - **`staff.d/` is claudestra's to write.** `hire` writes a staff file, with a header saying so, and `rename`, `move`, `send`, `fix-name`, `describe` and `local-folder` change it. `describe` changes what a staffer works on; whoever may hire a staffer may describe it, and so may the staffer itself. No session edits it directly, and `claudestra check` warns of a staff file claudestra did not write.
 - **Hiring**: the name defaults to the session's title and the folder to where the session is filed; the description is required. Who may hire is worked out from that folder (§6.1). A session never hires itself.
 - **Dismissing** moves the staff file to `staff-dismissed.d/` exactly as it is. The session is untouched, and so is any scope it holds. `hire` on a dismissed session brings the file back, with whatever is given written over it, and its scope with it. Dismissal is refused while the staffer runs in claudestra's tmux or starts at login on any machine, since either would leave something nobody answers for; and `trash` refuses a staffer, so a staffer is dismissed before its session is trashed.
-- **Rotating** (`staff rotate`) gives a staffer a new session and keeps everything else: the staff file moves to the new session's ID as it is, and `trust.yaml` moves its scope and its place in any autostart to the new ID. Who answers to a manager is worked out from folders, so a rotated manager's staffers follow it with nothing rewritten. The new session is begun in the staffer's folder here, with an opening written from its staff file and then the brief (`--prompt`), which a session must give. An old session with a transcript here must be stopped, and goes to the trash. Its main use is a staffer whose conversation is gone: one whose staff file names a folder on this machine alone, with no transcript of its session here and nothing running it, as when Claude Code deletes a transcript left idle past its cleanup period. `audit` reports such a staffer, and `staff list` shows it as `gone`.
+- **Rotating** (`staff rotate`) gives a staffer a new session and keeps everything else: the staff file moves to the new session's ID as it is, and `trust.yaml` moves its scope and its place in any autostart to the new ID. Who answers to a manager is worked out from folders, so a rotated manager's staffers follow it with nothing rewritten. The new session is begun in the staffer's folder here, with an opening written from its staff file and then the brief (`--prompt`), which a session must give. An old session with a transcript here must be stopped, and goes to the trash. Its main use is a staffer whose conversation is gone: one whose staff file names a folder on this machine alone, with no transcript of its session here and nothing running it, as when Claude Code deletes a transcript left idle past its cleanup period. `audit` reports such a staffer, and `staff list` shows it as `gone`. A rotation needs a `--reason`, which goes with the old session into the staff file's `history`.
+- **History** lets an ID written before a rotation, in an open item (§6.7) or anywhere else, still reach the staffer: a session ID is read as the staffer whose staff file names it, as its session or in its history. `staff history add` records a session a staffer gave up some other way, such as a spawn and a dismissal, with the time and the reason; who may describe the staffer may add to it. `staff history list` shows the history with the staffer's hires, dismissals, renames and descriptions from claudestra's log, which each machine keeps for itself, so those are what happened on this machine. Dismissals and rehires are not written into the staff file, since they do not change the session ID.
 - **Its folder must be exactly the folder its session is filed under, redirects followed**, since resuming from any other folder forks the session (§3); and where the transcript records the folder the session started in, that very folder, since folders can share a slug. Folders are compared by exact slug. `claudestra check` reports a mismatch as an error, and `start` refuses it.
 - **Whether it starts at login is not the staffer's to say**: `autostart` in `trust.yaml` decides, and an `autostart` key in a staff file is an error.
 - Trust never comes from a staff file except through the folder check in §6.1.
@@ -249,6 +259,23 @@ claudestra's checks bind only sessions that go through claudestra, so the config
 | `update-reminders` | `yes`, `no` | yes |
 
 **Update reminders.** At the user's terminal, at most once a day, claudestra asks the git remote it was installed from, as uv recorded it, for its newest release tag, and says so on stderr when it is newer than the one running. It never prompts for a password, says nothing when the remote cannot be asked, and is never shown to a session. An editable install, or one from a local folder, is a developer's, updated by pulling, and is never checked.
+
+### 6.7 Open items
+
+A manager keeps the open items of its project: its own work, and its specialists'. Another manager's project is that manager's to keep, even one that answers to it, and a specialist keeps none; it reports to its manager, which checks the work is done before it deletes the item. Each manager's items are `open-items.d/<its session ID>.yaml` in the config folder, written by claudestra, and only on the machine the manager lives on, so a config folder kept in step between machines never has two writing one file.
+
+```yaml
+items:
+  - id: <a ULID: when it was made, then random>
+    title: <what is open, in a line>
+    description: <a short description>
+    state: open | waiting | blocked
+    waiting_on: user | upstream | <a staffer's session ID>
+    held_by: <the session ID of a specialist in the project holding it>
+    where: <where the project tracks it in detail>
+```
+
+An item is a summary and a pointer: the detail stays in the project's own tracker, named by `where`. `open-items list` reads a project: a manager's own items, or those a specialist holds; with no session, the caller's, and the user picks one, or all, at a terminal; `--all` reads every manager's, on every machine, and `--waiting-on` narrows to what waits on the user, upstream or a staffer. `get` shows one item, `search` finds text in a project's. A table shows the last eight characters of a ULID, since its first are the time it was made; a command takes the full ULID or a unique ending of six or more. `add`, `update` and `delete` are the manager's, and the user's; `reassign` gives an item to a manager, or to a specialist, held by it in its manager's project, on this machine only: the other machine may take no connections, so an item for a manager there is deleted here and added there. `staff rotate` takes a manager's items with it. `audit` reports items no one keeps: a manager's that is off the staff, holds no scope or whose conversation is gone, and an item held by or waiting on a staffer no longer on the staff. Nothing is shown when a session starts; a session asked what is open runs `open-items list`.
 
 ## 7. Runners
 

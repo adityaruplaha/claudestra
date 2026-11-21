@@ -99,6 +99,13 @@ class StaffFile:
     folder: Path | None  # on this host; None if it does not run here
     folders: dict[str, str]  # every host's, as written
     description: str
+    history: list[dict] = field(
+        default_factory=list
+    )  # the sessions it had before, oldest first: session, rotated, reason
+
+    @property
+    def past_sessions(self) -> list[str]:
+        return [h["session"] for h in self.history]
 
 
 @dataclass
@@ -140,6 +147,11 @@ class Trust:
 
     def staff_file(self, sid: str | None) -> StaffFile | None:
         return next((a for a in self.staff if sid and a.session == sid), None)
+
+    def staffer_now(self, sid: str | None) -> StaffFile | None:
+        """The staffer a session ID stands for now: its own staff file, or the one that names it in its history,
+        so an ID written before a `staff rotate` still reaches the staffer."""
+        return self.staff_file(sid) or next((a for a in self.staff if sid and sid in a.past_sessions), None)
 
     def scope(self, sid: str | None) -> str | None:
         """The session's scope while it is on the staff. A dismissed staffer keeps its scope in
@@ -286,6 +298,12 @@ def load(host: str, home: Path, config: Path | None = None) -> Trust:
         folder = next((v for h, v in folders.items() if str(h).lower() == host.lower()), None)
         if "autostart" in raw:
             errors.append(f"{where}: autostart is not a staffer's to set; it is under each machine in trust.yaml")
+        history = raw.get("history") or []
+        if not isinstance(history, list) or not all(
+            isinstance(h, dict) and UUID.match(str(h.get("session", ""))) for h in history
+        ):
+            errors.append(f"{where}: history must be a list of the sessions it had, each with its session ID")
+            history = []
         desc = raw.get("description")
         if not isinstance(desc, str) or not desc.strip():
             errors.append(f"{where}: description must say what the staffer works on")
@@ -298,6 +316,7 @@ def load(host: str, home: Path, config: Path | None = None) -> Trust:
                 expand(folder, home) if folder else None,
                 {str(h): v for h, v in folders.items()},
                 desc.strip(),
+                [{k: str(v) for k, v in h.items() if k in ("session", "rotated", "reason")} for h in history],
             )
         )
 

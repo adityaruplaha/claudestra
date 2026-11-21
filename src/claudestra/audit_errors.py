@@ -74,6 +74,13 @@ class LostStaffer(AuditError):
     report = "staff"
 
 
+class StrayItems(AuditError):
+    """Open items no one keeps: a file whose manager is off the staff, has lost its scope or its conversation, or
+    an item held by, or waiting on, a staffer no longer on the staff. Reported for the user to reassign or delete."""
+
+    report = "open-items"
+
+
 class NameMismatch(AuditError):
     """A staffer's staff file name is not its session's title, as after a /rename typed inside the session."""
 

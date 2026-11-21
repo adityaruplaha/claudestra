@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ..audit_errors import AuditError
 from ..caller import Refused
-from ..ops.audit import REPORTS
+from ..ops.audit import REPORTS, WITH_TRUST
 from .base import ReadOnlyAction
 
 
@@ -21,4 +21,4 @@ class Audit(ReadOnlyAction):
 
     def run(self) -> dict[str, list[AuditError]]:
         c = self.context
-        return {name: REPORTS[name](c.fs, c.model) for name in self.reports}
+        return {name: REPORTS[name](c.fs, c.model, *([c.trust] if name in WITH_TRUST else [])) for name in self.reports}

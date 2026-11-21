@@ -8,6 +8,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+import yaml
 
 from claudestra import portable
 from claudestra.caller import Caller, Refused
@@ -77,11 +78,14 @@ def test_a_manager_rotates_a_lost_specialist_with_its_staff_entry_and_brief(home
     c = home.acting(HUMAN, {A: "folder"})
     c._subject = Caller("folder", A, "mgr", 1, folder=top)
     with pytest.raises(Refused, match="--prompt"):  # a session gives the brief
-        staffer(B).rotate(claude, socket=socket).perform()
-    r = staffer(B).rotate(claude, "pick up the tests", socket=socket)
+        staffer(B).rotate(claude, socket=socket, reason="r").perform()
+    r = staffer(B).rotate(claude, "pick up the tests", socket=socket, reason="r")
     assert "started" in r.perform()
     new = home.config / "staff.d" / f"{r.new}.yaml"
-    assert not old.exists() and new.read_text() == text
+    written = yaml.safe_load(new.read_text())
+    assert not old.exists() and {k: v for k, v in written.items() if k != "history"} == yaml.safe_load(text)
+    [h] = written["history"]
+    assert h["session"] == B and h["reason"] == "r" and "T" in h["rotated"]  # an exact ISO time
     prompt = "\n".join(argv(tmp)[6:])  # after --session-id, --name and --remote-control
     assert f"You are spec, a staffer claudestra has rotated: you replace session {B}" in prompt
     assert "Claude Code deleted" in prompt and "answer to mgr" in prompt and prompt.endswith("pick up the tests")
@@ -93,7 +97,7 @@ def test_a_stopped_staffer_with_a_transcript_goes_to_the_trash(home: Home, serve
     aged(home.transcript(A, w))
     home.staff_file(A, "s", {HERE: "~/w"})
     c = home.acting(HUMAN)
-    r = staffer(A).rotate(claude, socket=socket)
+    r = staffer(A).rotate(claude, socket=socket, reason="r")
     r.perform()
     assert A not in c.model.sessions and c.trust.named("s").session == r.new
     [(entry, mf)] = trash_ops.entries(c.fs)
@@ -114,12 +118,12 @@ def test_rotating_a_manager_moves_its_scope_and_autostart_and_its_staffers_follo
     trust_with(home, {A: "folder", dev: "device"}, [A])
     c._subject = Caller("device", dev, "dev", 1)
     with pytest.raises(Refused, match="may not rotate"):  # a device scope, over a manager
-        staffer(A).rotate(claude, "b", socket=socket).perform()
+        staffer(A).rotate(claude, "b", socket=socket, reason="r").perform()
     c._subject = Caller("folder", A, "mgr", 1, folder=top)
     with pytest.raises(Refused, match="itself"):
-        staffer(A).rotate(claude, "b", socket=socket).perform()
+        staffer(A).rotate(claude, "b", socket=socket, reason="r").perform()
     c._subject = HUMAN
-    r = staffer(A).rotate(claude, socket=socket)
+    r = staffer(A).rotate(claude, socket=socket, reason="r")
     r.perform()
     assert c.trust.scope(r.new) == "folder" and c.trust.autostart(HERE) == [r.new] and A not in c.trust.scopes
     assert [m.session for m in c.trust.managers_over(c.trust.staff_file(B))] == [r.new]
@@ -136,7 +140,7 @@ def test_a_specialist_that_starts_at_login_is_the_users_to_rotate(home: Home, se
     trust_with(home, {A: "folder"}, [B])
     c._subject = Caller("folder", A, "mgr", 1, folder=top)
     with pytest.raises(Refused, match="trust.yaml.*is for the user"):
-        staffer(B).rotate(claude, "b", socket=socket).perform()
+        staffer(B).rotate(claude, "b", socket=socket, reason="r").perform()
 
 
 def test_a_failed_start_puts_everything_back(home: Home, server):
@@ -147,7 +151,7 @@ def test_a_failed_start_puts_everything_back(home: Home, server):
     c = home.acting(HUMAN)
     trust_with(home, {A: "folder"}, [A])
     before = (home.config / "trust.yaml").read_text()
-    r = staffer(A).rotate("/nowhere/claude", socket=socket)
+    r = staffer(A).rotate("/nowhere/claude", socket=socket, reason="r")
     with pytest.raises(Refused, match="claude is not at"):
         r.perform()
     assert old.exists() and not (home.config / "staff.d" / f"{r.new}.yaml").exists()
@@ -161,4 +165,4 @@ def test_a_running_staffer_or_one_that_may_live_elsewhere_is_refused(home: Home,
     home.staff_file(C, "visitor", {HERE: "~/w", "elsewhere": "~/w"})
     home.acting(HUMAN)
     with pytest.raises(Refused, match="may live on elsewhere"):
-        staffer(C).rotate(claude, socket=socket).perform()
+        staffer(C).rotate(claude, socket=socket, reason="r").perform()

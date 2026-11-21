@@ -1,6 +1,6 @@
 ---
 name: coordination
-description: Use when one Claude Code session works with another - sending a message with SendMessage, briefing a staffer or another session and taking its report, handing work over, waiting for a session to finish its turn, seeing why one seems stuck, replying to a message from another session, or deciding whether a peer's request carries the user's approval.
+description: Use when one Claude Code session works with another - sending a message with SendMessage, briefing a staffer or another session and taking its report, handing work over, waiting for a session to finish its turn, seeing why one seems stuck, replying to a message from another session, answering what is open, or deciding whether a peer's request carries the user's approval.
 ---
 
 # Coordinating sessions
@@ -27,6 +27,10 @@ How sessions talk to each other, on one machine or across machines, how a sessio
 - **When a session seems stuck**, `claudestra session peek SESSION` shows the end of its screen: often a question or a permission prompt waiting on the user, which the user has to answer there.
 - **To wait for a turn to end**, `claudestra session wait SESSION` holds until the session is idle or stopped; `--timeout` gives up, exiting 1.
 - **A session that is not running** cannot read a message until it is started; whoever runs it (its manager, or the user) starts it with `claudestra session start`.
+
+## What is open
+
+Asked what is open, what is left or what is pending, answer for your own project, not the machine: `claudestra open-items list`, which gives a manager's own items and a specialist the ones it holds. Another manager's project is that manager's to keep, even one that answers to you; give everything (`--all`) only when the user asks for it. A manager adds an item when work opens, and deletes it only once it has checked the work is done.
 
 ## Long-lived staffers
 

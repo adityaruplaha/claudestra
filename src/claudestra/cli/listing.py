@@ -185,6 +185,29 @@ def trash_reason(manifest: dict | None) -> Text:
     return Text(reason, style="blue") if reason else dim(None)
 
 
+# --- open items -------------------------------------------------------------------------------------
+
+
+def item_id(ulid: str) -> Text:
+    """An item's ULID as tables show it: its last characters, since its first are the time it was made."""
+    from ..ops.open_items import SHORT
+
+    return Text(ulid[-SHORT:], style="cyan")
+
+
+def item_state(item: dict) -> Text:
+    state = item.get("state") or "open"
+    return Text(state, style={"open": "green", "waiting": "yellow", "blocked": "red"}.get(state, ""))
+
+
+def staffer_name(c, sid: str | None) -> Text:
+    """The staffer a session ID stands for now (across a rotate), by name; or the value itself, dimmed."""
+    if not sid:
+        return dim(None)
+    sf = c.trust.staffer_now(sid)
+    return name(sf.name) if sf else dim(sid if len(sid) < 36 else sid[:8])
+
+
 # --- staffers ---------------------------------------------------------------------------------------------
 
 

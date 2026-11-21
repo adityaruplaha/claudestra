@@ -48,6 +48,9 @@ def _group(name: str, help: str) -> typer.Typer:
 
 session_app = _group("session", "Run, begin, rename and move sessions; `ls` lists them.")
 staff_app = _group("staff", "List, hire, dismiss and describe staffers.")
+open_items_app = _group(
+    "open-items", "A manager's open items: what is left in its project, and who holds it; `list` reads them."
+)
 trash_app = _group("trash", "List the trash, move sessions to it, restore and purge them.")
 machine_app = _group("machine", "List the machines, and move sessions between them (moving is the user's alone).")
 install_app = _group(
