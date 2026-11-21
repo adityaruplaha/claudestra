@@ -1,7 +1,7 @@
 {
   "name": "claudestra",
   "displayName": "claudestra",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Orchestrate long-lived Claude Code sessions as a staff, with a chain of command: checks for the claudestra CLI (or installs it, if allowed), keeps its guard in place, and ships its skills.",
   "author": {
     "name": "Adityarup Laha",
@@ -15,6 +15,9 @@
   "supportUrl": "https://github.com/adityaruplaha/claudestra/issues",
   "privacyPolicyUrl": "https://github.com/adityaruplaha/claudestra/blob/main/PRIVACY.md",
   "icon": "./icon.svg",
+  "network": {
+    "hosts": ["github.com"]
+  },
   "keywords": [
     "sessions",
     "orchestration",

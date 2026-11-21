@@ -1,6 +1,6 @@
 ---
 name: sessions
-description: Use when judging whether a Claude Code session is finished, removing or cleaning up sessions, finding and settling forked or duplicate sessions, working out where a session is filed (including multi-root VS Code workspaces), or moving a session to another folder or machine.
+description: Use when judging whether a Claude Code session is finished, removing or cleaning up sessions, finding and settling forked or duplicate sessions, working out where a session is filed (including multi-root VS Code workspaces), moving a session to another folder or machine, or replacing a staffer whose conversation is gone.
 ---
 
 # Sessions on disk
@@ -16,6 +16,8 @@ Whether a session is finished, removing it, settling forks, how Claude Code file
 ## Removing sessions
 
 Claude Code has no command to delete one session: `cleanupPeriodDays` deletes by age, and `claude project purge` removes a whole project, its auto-memory with it. So `claudestra trash add` moves a session and every store keyed by it to a trash, `claudestra trash restore` puts it back exactly, and only `claudestra trash purge`, the user's, deletes.
+
+**A staffer whose conversation is gone.** At startup Claude Code deletes every transcript idle longer than `cleanupPeriodDays` (30 by default), a staffer's included; the staff file stays, but the session cannot be resumed. `claudestra staff list` shows such a staffer as `gone` under "lives on", and `claudestra audit` reports it. `claudestra staff rotate NAME --reason "..." --prompt "..."` gives it a new session that keeps its name, description, folders, scope, autostart and open items, and records the old session in its history; the brief says where its work stands, rebuilt from the project's files and history, since the new session starts with only its staff file. Rotating a manager or an autostart staffer is the user's. Setting `cleanupPeriodDays` high in Claude Code's settings keeps it from happening; that setting is the user's.
 
 `trash add` refuses a session that is open, even idle, or written in the last few minutes: an open session that has been moved writes a small stub back to its old place when it exits, which then shows up as a duplicate. After a trash, `claudestra audit` shows such a stub if one appears.
 
