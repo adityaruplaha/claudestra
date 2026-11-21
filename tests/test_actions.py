@@ -403,7 +403,7 @@ def test_every_changing_action_declares_who_may_take_it():
     """Each action states its own rule; nothing changing is left without one."""
     assert set(R) == {
         "attach", "compact", "completion", "describe", "dismiss", "fetch", "fix the audit", "guard", "hire", "install", "move", "purge", "rename",
-        "fix-name", "preferences", "remote-control", "restore", "send", "spawn", "uninstall", "start", "stop", "trash", "type",
+        "fix-name", "preferences", "rotate", "remote-control", "restore", "send", "spawn", "uninstall", "start", "stop", "trash", "type",
         "trust grant", "trust revoke", "trust autostart", "trust protect", "trust machine",
         "local-folder assign", "local-folder remove",
     }  # fmt: skip

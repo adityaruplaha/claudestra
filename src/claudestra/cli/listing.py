@@ -195,6 +195,16 @@ def lives_on(c, sf) -> list[str]:
     return [str(h) for h in sf.folders if str(h).lower() != c.machine.hostname.lower()]
 
 
+def lost(c, sf) -> bool:
+    """Whether the staffer's conversation is gone (model.lost_staffer)."""
+    return any(f.session == sf.session for f in c.model.lost_staff)
+
+
+def where(c, sf) -> Text:
+    """The `lives on` cell: the machines it lives on, or "gone" in red where its conversation is gone."""
+    return Text("gone", style="red") if lost(c, sf) else machines(lives_on(c, sf), c.machine.hostname)
+
+
 def local_folder(c, sf) -> Cell:
     """A staffer's folder on this machine, or nothing: never its folder on another machine, which would read as
     one here (his ruling, 2026-10-18); `lives on` says where it lives."""

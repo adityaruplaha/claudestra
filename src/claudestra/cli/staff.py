@@ -367,13 +367,12 @@ def staff_list(
 
     here = [sf for sf in staff if sf.folder is not None]
     if as_json or not tree:
-        host = c.machine.hostname
         listing.Listing(
             [
                 listing.Column("name", lambda sf: listing.name(sf.name)),
                 listing.Column("session", lambda sf: listing.short_id(sf.session)),
                 listing.Column("scope", lambda sf: listing.scope(t_.scope(sf.session))),
-                listing.Column("lives on", lambda sf: listing.machines(listing.lives_on(c, sf), host)),
+                listing.Column("lives on", lambda sf: listing.where(c, sf)),
                 listing.Column("folder here", lambda sf: listing.local_folder(c, sf), wrap=True),
             ],
             lambda sf: {
@@ -382,6 +381,7 @@ def staff_list(
                 "scope": t_.scope(sf.session),
                 "resident": sf.session in lives_here,
                 "lives_on": listing.lives_on(c, sf),
+                "lost": listing.lost(c, sf),
                 "folder": str(sf.folder) if sf.folder else None,
                 "folders": sf.folders,
                 "answers_to": boss(sf) if sf.folder else None,
@@ -452,6 +452,34 @@ def dismiss(
 
 
 @staff_app.command()
+def rotate(
+    ctx: typer.Context,
+    staffer: STAFFER.arg = None,
+    prompt: Annotated[
+        str | None,
+        typer.Option(
+            "--prompt", help="Its brief, after the opening written from its staff file; a session must give one."
+        ),
+    ] = None,
+    recent_minutes: Annotated[
+        float, typer.Option("--recent-minutes", help="Refuse to trash an old session written this recently.")
+    ] = 10.0,
+    claude: ClaudePath = None,
+    dry: Dry = False,
+    yes: Yes = False,
+    socket: Socket = None,
+) -> None:
+    """Give a staffer a new session, keeping its name, description, folders, scope and autostart; the old session,
+    if it has a transcript here, goes to the trash (as dismiss allows; one with a scope or autostart, the user's)."""
+    c: Ctx = ctx.obj
+    caller = c.act(["pid-files", "proc-start", "remote-control"])
+    st = c.staffer(STAFFER.get(staffer))
+    action = st.rotate(_claude(caller.kind, claude, socket), prompt, recent_minutes, socket)
+    for line in (refusing(lambda: action.perform(go_ahead(yes, dry))) or "").splitlines():
+        out.print(outcome(line) if not line.startswith("session ") else Text(line, style="bold"))
+
+
+@staff_app.command()
 def describe(
     ctx: typer.Context,
     staffer: STAFFER.arg = None,
@@ -513,7 +541,6 @@ def local_folder_list_missing(ctx: typer.Context, as_json: AsJson = False) -> No
     """The staffers that live on another machine and have no folder on this one; device scopes are left out while
     they are bound to their own machines (`claudestra preferences device-scopes-machine-bound`)."""
     c: Ctx = ctx.obj
-    host = c.machine.hostname
     missing = sorted(
         (
             sf
@@ -526,7 +553,7 @@ def local_folder_list_missing(ctx: typer.Context, as_json: AsJson = False) -> No
         [
             listing.Column("name", lambda sf: listing.name(sf.name)),
             listing.Column("session", lambda sf: listing.short_id(sf.session)),
-            listing.Column("lives on", lambda sf: listing.machines(listing.lives_on(c, sf), host)),
+            listing.Column("lives on", lambda sf: listing.where(c, sf)),
             listing.Column("folder there", lambda sf: listing.folder_there(c, sf), wrap=True),
         ],
         lambda sf: {"session": sf.session, "name": sf.name, "folders": sf.folders},

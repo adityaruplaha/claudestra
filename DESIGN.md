@@ -178,13 +178,14 @@ The relations, with D for a device scope:
 | hire | ✅ | ✅ | | ✅ | | | | |
 | spawn | ✅ | ✅ | | ✅ | | | | |
 | dismiss | ✅ | ✅ | | ✅ | | | | |
+| rotate | ✅ | ⚠️ | | ⚠️ | | | | |
 | move | ✅ | | ✅ | | | | | |
 | trash | ✅ | | | | | | ✅ | |
 | send | ✅ | | | | | | | |
 | local-folder assign | ✅ | | ✅ | ✅ | ✅ | ✅ | | |
 | local-folder remove | ✅ | | ✅ | ✅ | ✅ | ✅ | | |
 
-✅ allowed; ⚠️ allowed, with a caveat noted here; blank, refused. `fix-name` and `describe` also allow the staffer itself. For `hire` and `spawn`, the columns are the relation the subject would have to the session once hired or begun. `local-folder assign` and `remove` act only on a staffer whose session lives on another machine, and change only this machine's folder in its staff file; while the user's preference `device-scopes-machine-bound` holds (it does unless set to `no`), `assign` refuses a device scope, and `machine send` and `fetch` refuse to move one, since a device scope belongs to its own machine; set to `no`, each goes ahead with a warning.
+✅ allowed; ⚠️ allowed, with a caveat noted here; blank, refused. `fix-name` and `describe` also allow the staffer itself. For `hire` and `spawn`, the columns are the relation the subject would have to the session once hired or begun. `rotate` of a staffer with a scope, or one that starts at login, is the user's alone, since it rewrites `trust.yaml`. `local-folder assign` and `remove` act only on a staffer whose session lives on another machine, and change only this machine's folder in its staff file; while the user's preference `device-scopes-machine-bound` holds (it does unless set to `no`), `assign` refuses a device scope, and `machine send` and `fetch` refuse to move one, since a device scope belongs to its own machine; set to `no`, each goes ahead with a warning.
 
 **Actions on anything else:**
 
@@ -210,6 +211,7 @@ description: <what it works on>
 - **`staff.d/` is claudestra's to write.** `hire` writes a staff file, with a header saying so, and `rename`, `move`, `send`, `fix-name`, `describe` and `local-folder` change it. `describe` changes what a staffer works on; whoever may hire a staffer may describe it, and so may the staffer itself. No session edits it directly, and `claudestra check` warns of a staff file claudestra did not write.
 - **Hiring**: the name defaults to the session's title and the folder to where the session is filed; the description is required. Who may hire is worked out from that folder (§6.1). A session never hires itself.
 - **Dismissing** moves the staff file to `staff-dismissed.d/` exactly as it is. The session is untouched, and so is any scope it holds. `hire` on a dismissed session brings the file back, with whatever is given written over it, and its scope with it. Dismissal is refused while the staffer runs in claudestra's tmux or starts at login on any machine, since either would leave something nobody answers for; and `trash` refuses a staffer, so a staffer is dismissed before its session is trashed.
+- **Rotating** (`staff rotate`) gives a staffer a new session and keeps everything else: the staff file moves to the new session's ID as it is, and `trust.yaml` moves its scope and its place in any autostart to the new ID. Who answers to a manager is worked out from folders, so a rotated manager's staffers follow it with nothing rewritten. The new session is begun in the staffer's folder here, with an opening written from its staff file and then the brief (`--prompt`), which a session must give. An old session with a transcript here must be stopped, and goes to the trash. Its main use is a staffer whose conversation is gone: one whose staff file names a folder on this machine alone, with no transcript of its session here and nothing running it, as when Claude Code deletes a transcript left idle past its cleanup period. `audit` reports such a staffer, and `staff list` shows it as `gone`.
 - **Its folder must be exactly the folder its session is filed under, redirects followed**, since resuming from any other folder forks the session (§3); and where the transcript records the folder the session started in, that very folder, since folders can share a slug. Folders are compared by exact slug. `claudestra check` reports a mismatch as an error, and `start` refuses it.
 - **Whether it starts at login is not the staffer's to say**: `autostart` in `trust.yaml` decides, and an `autostart` key in a staff file is an error.
 - Trust never comes from a staff file except through the folder check in §6.1.

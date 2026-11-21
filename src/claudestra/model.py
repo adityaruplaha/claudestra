@@ -88,6 +88,7 @@ class Model:
     stale_pid_files: list[PidFile]
     jobs: list[Job]
     folders_by_slug: dict[str, set[str]]  # every known folder, by the slug it maps to
+    lost_staff: list[StaffFile] = field(default_factory=list)  # staffers whose conversation is gone (`lost`)
 
     def resolve(self, token: str) -> list[SessionRecord]:
         """Sessions matching a full ID, an 8+ character prefix, a bridge ID, a job's short ID, or a name.
@@ -107,6 +108,19 @@ class Model:
         if not hits:
             hits = [s for s in self.sessions.values() if t in s.names[:1]]
         return hits
+
+
+def lost_staffer(sf: StaffFile, host: str, sessions: dict[str, SessionRecord], runs: list[Run]) -> bool:
+    """Whether a staffer's conversation is gone: its staff file names a folder on this machine and on no
+    other, so that it can live nowhere else, yet no transcript of its session is here and nothing runs it,
+    as when Claude Code deletes a transcript left idle past its cleanup period. It cannot be resumed;
+    `claudestra staff rotate` gives it a new session."""
+    return (
+        sf.folder is not None
+        and all(str(h).lower() == host.lower() for h in sf.folders)
+        and sf.session not in sessions
+        and not any(r.session_id == sf.session for r in runs)
+    )
 
 
 def _str(d: dict, k: str) -> str | None:
@@ -191,4 +205,5 @@ def build(fs: ClaudeFS, trust: Trust, machine: Machine | None = None) -> Model:
             s.folder = Path(first)
         elif len(cands := filed.get(s.homes[0], set())) == 1:
             s.folder = Path(next(iter(cands)))
-    return Model(machine, sessions, runs, stale, jobs, folders)
+    lost = [sf for sf in trust.staff if lost_staffer(sf, machine.hostname, sessions, runs)]
+    return Model(machine, sessions, runs, stale, jobs, folders, lost)

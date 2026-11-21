@@ -67,6 +67,13 @@ class StaleConfig(AuditError):
     report = "config"  # a ~/.claude.json entry for a folder or session that is gone
 
 
+class LostStaffer(AuditError):
+    """A staffer whose conversation is gone (model.lost_staffer). Not fixed by `audit --fix`, since the fix,
+    `claudestra staff rotate`, starts a session and needs a brief."""
+
+    report = "staff"
+
+
 class NameMismatch(AuditError):
     """A staffer's staff file name is not its session's title, as after a /rename typed inside the session."""
 

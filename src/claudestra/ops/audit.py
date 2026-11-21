@@ -6,6 +6,7 @@ Each report is a list of findings; acting on one is another command's job or the
 from __future__ import annotations
 
 import filecmp
+import json
 import os
 from collections.abc import Callable
 from pathlib import Path
@@ -14,6 +15,7 @@ from ..audit_errors import (
     AuditError,
     BrokenRedirect,
     Fork,
+    LostStaffer,
     ManyRuns,
     NameMismatch,
     Orphan,
@@ -255,8 +257,21 @@ def names(fs: ClaudeFS, m: Model) -> list[AuditError]:
     ]
 
 
+def staff(fs: ClaudeFS, m: Model) -> list[AuditError]:
+    """Staffers whose conversation is gone: a staff file for this machine alone with no transcript behind it."""
+    return [
+        LostStaffer(
+            sf.session,
+            f"{sf.name!r}: its conversation is gone and cannot be resumed; "
+            f"`claudestra staff rotate {json.dumps(sf.name)}` gives it a new session, keeping its staff entry",
+        )
+        for sf in m.lost_staff
+    ]
+
+
 REPORTS: dict[str, Callable[[ClaudeFS, Model], list[AuditError]]] = {
     "names": names,
+    "staff": staff,
     "two-homes": two_homes,
     "runs": runs,
     "forks": forks,

@@ -57,7 +57,7 @@ Every argument that names a session, staffer, trash entry, machine, folder or ch
 | `clost whoami`          | Who claudestra takes you to be, your scope, and who manages you.                                            |
 | `clost permissions`     | Who may take each action.                                                                                   |
 | `clost doctor`          | Checks every fact about Claude Code's files that claudestra relies on, and its own setup. Its `versions` warning, "unchecked versions", is expected after a Claude Code update and usually harmless. |
-| `clost audit`           | What needs attention: forks, subagent copies, links, orphans, stale state. `--fix` fixes what is safe to. |
+| `clost audit`           | What needs attention: forks, subagent copies, links, orphans, stale state, staffers whose conversation is gone. `--fix` fixes what is safe to. |
 | `clost check`           | `trust.yaml` and the staff files against this machine.                                                    |
 | `clost log [SESSION]`   | What claudestra has done here: who did what to which session, and when.                                     |
 
@@ -82,7 +82,7 @@ Every reading command takes `--json`.
 
 `clost autostart` starts this machine's autostart staffers; the login unit runs it at login.
 
-**The staff**: `clost staff list | hire | dismiss | describe | local-folder`. `staff list` (also `ls`) shows the staff on every machine and the machine each lives on; `--scope device,folder` narrows it by scope, `--resident`, `--non-resident` and `--visitors` (staffers from another machine with a folder here) by machine, and `--tree` shows who manages whom on this machine. `staff local-folder assign | remove | list-missing` gives a staffer that lives on another machine a folder on this one, takes it away, or lists those with none.
+**The staff**: `clost staff list | hire | dismiss | rotate | describe | local-folder`. `staff list` (also `ls`) shows the staff on every machine and the machine each lives on, or `gone` for one whose conversation Claude Code has deleted; `--scope device,folder` narrows it by scope, `--resident`, `--non-resident` and `--visitors` (staffers from another machine with a folder here) by machine, and `--tree` shows who manages whom on this machine. `staff local-folder assign | remove | list-missing` gives a staffer that lives on another machine a folder on this one, takes it away, or lists those with none. `staff rotate` gives a staffer a new session and keeps its name, description, folders, scope and autostart, with `--prompt` for its brief; an old session that still has a transcript goes to the trash.
 
 **The trash**: `clost trash list | add | restore | purge`. Claude Code has no per-session delete; claudestra moves a session and every store keyed by it to a trash, puts it back exactly with `restore`, and only `purge` deletes: the entries named, or every one passing `--older-than DAYS`, `--moved` (the copies a `machine send` or `fetch` left behind when the session moved) or `--moved-to HOST`, or, with none of these, the ones ticked from the trash.
 

@@ -229,7 +229,6 @@ class Staffers(Selector):
                 and self.keep(sf.session)
             )
 
-        host = c.machine.hostname
         return [
             (
                 sf.session,
@@ -237,7 +236,7 @@ class Staffers(Selector):
                     listing.name(sf.name),
                     listing.short_id(sf.session),
                     listing.scope(t.scope(sf.session)),
-                    listing.machines(listing.lives_on(c, sf), host),
+                    listing.where(c, sf),
                 ),
             )
             for sf in sorted(t.staff, key=lambda f: f.name)

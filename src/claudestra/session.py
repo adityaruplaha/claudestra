@@ -246,6 +246,11 @@ class Staffer(Session):
 
         return Dismiss(self, socket)
 
+    def rotate(self, claude: str, prompt: str | None = None, recent_minutes: float = 10.0, socket: str | None = None):
+        from .actions.rotate import Rotate
+
+        return Rotate(self, claude, prompt, recent_minutes, socket)
+
     def set_description(self, description: str):
         from .actions.describe import Describe
 

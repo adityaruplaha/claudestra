@@ -62,6 +62,14 @@ def unhire(config: Path, sid: str, was_dismissed: str | None) -> None:
     staff_path(config, sid).unlink()
 
 
+def rehome(config: Path, old: str, new: str) -> None:
+    """Move a staff file to another session's ID, exactly as it is, for a rotate (and back, for its undo)."""
+    dst = staff_path(config, new)
+    if dst.exists():
+        raise Refused(f"{dst} exists already")
+    staff_path(config, old).rename(dst)
+
+
 def dismiss(config: Path, sid: str) -> str | None:
     """Move the staff file to staff-dismissed.d/, exactly as it is, over any older dismissed copy, whose text
     it returns for an undo. The staff file is the newer: hiring removes the dismissed copy it came from."""
